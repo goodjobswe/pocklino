@@ -427,3 +427,26 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+build/
+coverage/
+*.iml
+.idea/
+android/local.properties
+android/key.properties
+*.jks
+*.keystore
+# Local validation artifacts
+artifacts/
+
+# Android source-set manifests are source files, not build output.
+!/android/app/src/debug/
+!/android/app/src/debug/**
+!/android/app/src/release/
+!/android/app/src/release/**

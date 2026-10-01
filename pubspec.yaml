@@ -1,0 +1,49 @@
+name: pocklino
+description: "A little space for your life. Private notes, lists, plans and little surprises."
+publish_to: none
+version: 1.0.0+1
+environment:
+  sdk: ^3.7.2
+dependencies:
+  flutter:
+    sdk: flutter
+  sembast: ^3.8.5+1
+  sembast_web: ^2.4.2
+  path_provider: ^2.1.5
+  path: ^1.9.1
+  uuid: ^4.6.0
+  crypto: ^3.0.7
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.4.2
+  file_picker: ^11.0.3
+  share_plus: ^12.0.2
+  cross_file: ^0.3.5
+  url_launcher: ^6.3.2
+  intl: ^0.20.2
+  cupertino_icons: ^1.0.8
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/brand/
+    - assets/fonts/Lora-OFL.txt
+    - assets/fonts/DMSans-OFL.txt
+    - assets/fonts/Roboto-OFL.txt
+    - assets/fonts/NotoEmoji-OFL.txt
+  fonts:
+    - family: Lora
+      fonts:
+        - asset: assets/fonts/Lora-Variable.ttf
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-Variable.ttf
+
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/Roboto-Variable.ttf
+    - family: NotoEmoji
+      fonts:
+        - asset: assets/fonts/NotoEmoji-Variable.ttf
