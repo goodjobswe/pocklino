@@ -4,7 +4,7 @@
 
 **A little space for your life.**
 
-Pocklino is a small notebook for thoughts, groceries, films, trips and little surprises. Every kind of page is its own paper: a note is a slip, a list is a receipt, a film is a cinema ticket, a trip is a luggage tag and a letter is an envelope. They all live in one stitched pocket.
+Pocklino is a small notebook for thoughts, groceries, movies, trips and little surprises. Every kind of page is its own paper: a note is a slip, a list is a receipt, a movie is a cinema ticket, a trip is a luggage tag and a letter is an envelope. They all live in one stitched pocket.
 
 Everything stays on your device. There is no account and no Pocklino server, and the app adds no analytics or advertising. To give someone a page you pass them a copy, by QR code or as a file.
 
@@ -14,15 +14,17 @@ Pocklino is a hobby project by Glenn Höglund at [goodjob.nu](https://goodjob.nu
 
 <table>
   <tr>
-    <td align="center" width="25%"><img src="docs/screenshots/pocket.jpg" alt="The pocket with a pinned note, a checklist receipt, a cinema ticket, a luggage tag and an envelope, above a navy pocket bar with a coral create button" width="220"></td>
-    <td align="center" width="25%"><img src="docs/screenshots/create.jpg" alt="The create sheet with the five kinds of paper and a tile for receiving a page" width="220"></td>
-    <td align="center" width="25%"><img src="docs/screenshots/letter.jpg" alt="A letter open as an envelope with a coral seal, with stickers and the Open later switch below" width="220"></td>
-    <td align="center" width="25%"><img src="docs/screenshots/evening.jpg" alt="The pocket in the evening look, with dimmed papers on a dark desk" width="220"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/pocket.jpg" alt="The pocket with a pinned note, a checklist receipt, a cinema ticket, a luggage tag and an envelope, above a navy pocket bar with a coral create button" width="176"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/create.jpg" alt="The create sheet with the five kinds of paper and a tile for receiving a page" width="176"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/letter.jpg" alt="A letter open as an envelope with a coral seal, with stickers and the Open later switch below" width="176"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/pass.jpg" alt="The pass sheet with a QR code, the sharing speed slider and buttons to copy the code or share a file" width="176"></td>
+    <td align="center" width="20%"><img src="docs/screenshots/evening.jpg" alt="The pocket in the evening look, with dimmed papers on a dark desk" width="176"></td>
   </tr>
   <tr>
     <td align="center">The pocket</td>
     <td align="center">Something new</td>
     <td align="center">A letter</td>
+    <td align="center">Pass a copy</td>
     <td align="center">Evening</td>
   </tr>
 </table>
@@ -37,8 +39,8 @@ The phone pictures are from version 1.0.0 on an Android 15 emulator, the wide on
 - **Checklists that last:** tick items from the card, see finished ones grouped below, and reset or duplicate a list to use it again.
 - **Movies and trips:** a movie keeps a link and a watched switch; a trip keeps dates, plans and a packing list.
 - **Letters for later:** write to someone, and choose **Open later** to keep the envelope sealed until a date and time.
-- **Pass a copy:** show one QR code, an animated series of smaller codes for longer pages, a copied code or a `.pocklino` file. The page is compressed, so the codes stay plain and few. Adjust the sharing speed beneath the animated code, or enlarge any code to the full window. The receiver keeps scanned pieces across loops and sees a preview before keeping the page.
-- **Order when you want it:** collections, pinning, search, filters by kind and an archive.
+- **Pass a copy:** show one QR code, an animated series of smaller codes for longer pages, a copied code or a `.pocklino` file. The page is compressed, so the codes stay plain and few. Adjust the sharing speed beneath the animated code, from two seconds a code up to ten codes a second, or enlarge any code to the full window. The speed you choose is remembered. The receiver keeps scanned pieces across loops and sees a preview before keeping the page.
+- **Order when you want it:** collections, pinning, search, filters by kind and an archive. Archive or delete a page from its card or from the page itself; empty the archive, or clear the whole pocket from Settings, each after a confirmation and with Undo.
 - **Day and evening:** a light and a dark look, or follow the device.
 - **Yours to keep:** autosave on the device and a readable backup file you can export and restore.
 
@@ -60,7 +62,7 @@ Each release also carries a `.sha256` checksum for every file.
 
 Notes are stored in a local database on the device: a file in the app's own storage on Android, the file `pocklino-v1.db` in your Documents folder on Windows, and IndexedDB in the browser. There is no account and so no recovery through one. Export a backup from Settings before you move to a new device or remove the app; uninstalling or clearing site data removes the notes.
 
-- A backup is a readable JSON file of up to 10 MB. Restoring checks the whole file first, skips exact duplicates and keeps conflicting versions as separate pages.
+- A backup is a readable JSON file of everything in the notebook, whatever its size. Restoring takes a file of up to 50 MB, checks the whole file first, skips exact duplicates and keeps conflicting versions as separate pages.
 - One passed page can hold up to 64 KiB. Long pages need many QR frames, so a file is easier.
 - The Android release has no internet permission at all. Links open in the browser.
 - Pocklino never uploads anything by itself. If you send a file through a messaging or cloud app, that service handles it.
@@ -87,7 +89,7 @@ Version 1.0.0 is the first release. It passes static analysis and its automated 
 
 | Platform | Status |
 | --- | --- |
-| Android | The signed release build was walked through on an Android 15 emulator: empty pocket, examples, creating and editing, collections and both looks. Scanning a code with a real camera between two phones has not been tested yet. |
+| Android | The signed release build was walked through on an Android 15 emulator: empty pocket, examples, creating and editing, the pass sheet, collections and both looks. Scanning a long page from a computer screen with a real phone worked without a missed frame in a preview build with the same QR format. The fastest sharing speeds and passing between two phones have not been tested with a camera yet. |
 | Windows | The release build made by GitHub Actions starts and draws its window. File dialogs and a machine without developer tools have not been tested. |
 | Web | The release build was checked in Chrome: saving survives a reload, the app decodes its own rendered QR code, and a second browser receives a page. No outside network requests. |
 | iOS | Native project included; build and testing still needed on a Mac with Xcode. |

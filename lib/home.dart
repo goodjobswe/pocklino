@@ -142,12 +142,58 @@ class _PocketHomeState extends State<PocketHome> {
     }
   }
 
+  Future<void> emptyArchive() async {
+    final count = store.entries.where((entry) => entry.archived).length;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Empty the archive?'),
+            content: Text(
+              'This deletes ${count == 1 ? 'the 1 archived page' : 'all $count archived pages'}. '
+              'The pages in your pocket stay.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep them'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                  foregroundColor: Theme.of(ctx).colorScheme.onError,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Empty the archive'),
+              ),
+            ],
+          ),
+    );
+    if (yes != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final removed = await store.clearArchive();
+      messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 10),
+          content: const Text('The archive is empty.'),
+          action: SnackBarAction(
+            label: 'Undo',
+            onPressed: () => act(() => store.putBack(removed)),
+          ),
+        ),
+      );
+    } catch (_) {
+      if (mounted) toast(context, 'The archive could not be emptied.');
+    }
+  }
+
   void menu(PocketEntry entry, String action) {
     switch (action) {
       case 'pin':
         act(() => store.upsert(entry.copyWith(pinned: !entry.pinned)));
       case 'pass':
-        showPassSheet(context, entry);
+        showPassSheet(context, entry, store: store);
       case 'copy':
         act(() => store.duplicate(entry));
       case 'archive':
@@ -242,6 +288,18 @@ class _PocketHomeState extends State<PocketHome> {
                   searchField(),
                 ],
                 if (page != 2) ...[const SizedBox(height: 12), filters(wide)],
+                if (archived && store.entries.any((entry) => entry.archived))
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: TextButton.icon(
+                        onPressed: emptyArchive,
+                        icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                        label: const Text('Empty the archive'),
+                      ),
+                    ),
+                  ),
                 SizedBox(height: wide ? 26 : 22),
                 if (entries.isEmpty) emptyState() else board(entries),
                 if (page == 0 && store.entries.any((entry) => entry.isExample))

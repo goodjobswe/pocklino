@@ -24,13 +24,15 @@ Pocklino is a local Flutter application. Its features do not require a Pocklino 
 
 A `PocketEntry` is a note, checklist, movie, trip or letter. It contains stable IDs, creation/update timestamps, text, a collection, decoration, optional dates/link and checklist items. `received` distinguishes an imported copy from the sender's original. Examples are optional and explicitly marked; editing an example makes it the user's own page.
 
-Native storage is `pocklino-v1.db` in the application documents directory. Web storage is the `pocklino-v1` IndexedDB database. The `pocklino` store's `state` record contains schema version 1, entries, collections and local preferences. There is no application-level database encryption.
+Native storage is `pocklino-v1.db` in the application documents directory. Web storage is the `pocklino-v1` IndexedDB database. The `pocklino` store's `state` record contains schema version 1, entries, collections and local preferences: the owner name, the look and the sharing speed. There is no application-level database encryption.
 
 `AppStore` serializes mutations through a future chain. Each action derives the next state, persists it in a Sembast transaction, then updates the in-memory notebook and notifies listeners. Failed writes leave the visible committed state unchanged; failed actions do not prevent later writes. Initialization validates stored data and can be retried without deleting it.
 
 The editor debounces changes for 650 ms, keeps a revision counter so an earlier save cannot mark newer changes as saved, and serializes its save requests. Back navigation and passing await saving; inactive/paused lifecycle transitions also attempt a save. Abrupt process termination is not a guarantee of persisting keystrokes that have not reached a committed save.
 
 The store caps a notebook at 10,000 pages and 1,000 collections. Models reject malformed types, invalid dates, duplicate item IDs and oversized fields. Imported pages receive fresh local page/item IDs and normalized flags, preserving the source content without overwriting an existing page.
+
+Three actions remove pages. Deleting one page, from its card or from the menu of the open page, takes effect at once and offers Undo. **Empty the archive** on the Archive place and **Clear my pocket** in Settings ask first and then offer Undo for ten seconds; the removed pages are held in memory for that, and `putBack` returns them unless a page with the same ID exists by then. Clearing the pocket deletes every page and every added collection and keeps the preferences. Deleting an open page waits for a save in flight, so that the save cannot bring the page back, and its Undo restores the page as it read on screen, unsaved words included.
 
 ## Single-page transfer
 
@@ -45,9 +47,9 @@ A transfer contains the actual page, not a URL to server-held content. It is rea
 1. Build a JSON envelope with `e` (entry) and `h` (hex digest).
 2. Encode that envelope with unpadded base64url and prefix `pocklino:1:`.
 
-The token is uncompressed and has a 90,000-character limit. It contains no spaces or symbols that a text field or a messaging app could alter, and every release can read it, so copied codes and `.pocklino` files stay on this version.
+The token is uncompressed and has a 90,000-character limit. It contains no spaces or symbols that a text field or a messaging app could alter, so copied codes and `.pocklino` files use this version.
 
-Releases up to 1.0.1 also showed version 1 in their QR codes, as one code or as fragments:
+Preview builds made before the first release showed version 1 in their QR codes too, as one code or as fragments:
 
 ```text
 pocklino-part:1:<transfer-id>:<one-based-index>:<frame-count>:<fragment>
@@ -71,13 +73,15 @@ POCKLINO-PART:2:<transfer-id>:<one-based-index>:<frame-count>:<fragment>
 
 The transfer ID is the first 8 hex characters, in uppercase, of the full token's SHA-256 digest. A fragment may itself contain colons, so a receiver splits on the first five only. Fragments are cut between base45 triplets and so never end in a space. At most 375 frames and 100,000 characters are accepted, which covers a 64 KiB entry that does not compress at all. The receiver stops inflating at 64 KiB, so a small crafted code cannot expand into a large allocation.
 
-A receiver from release 1.0.1 or earlier cannot read version 2 QR codes; it can still receive the page through a copied code or file.
+Those preview builds cannot read version 2 QR codes.
 
 ### Showing and scanning
 
 No displayed code is denser than 57 by 57 modules (QR version 10): 311 alphanumeric characters at error-correction level M. Level M, not a higher one, because a code on a screen is lost to blur and resolution rather than to damage, and larger modules help more against those. Equal fragments mean every frame of a transfer gets the smallest code that the page allows. The code has a white quiet zone of four modules and is drawn on whole device pixels. It grows with the window, up to 440 logical pixels, and both single and animated codes can be enlarged to the full window; an enlarged animated code keeps playing.
 
-Playback starts at one second per frame. A visible sharing-speed slider ranges from two seconds to 0.4 seconds per frame, and pause/manual advance remains available. Speed changes retain the same fragments so the receiver can keep its progress. The scanner examines a camera picture every 50 ms instead of the plugin's default 250 ms, which gives each frame of a moving code several attempts.
+A visible sharing-speed slider has ten steps from two seconds to 0.1 seconds per frame, closer together toward the fast end, and pause/manual advance remains available. A new notebook starts at 0.5 seconds. The chosen speed is a preference of the device: it is written to the notebook when the slider is let go, so the next page that is passed opens at the same speed, and it is not part of a backup. A stored speed that is missing or not on the list settles on the nearest step and can never keep the notebook from opening. Speed changes retain the same fragments so the receiver can keep its progress. The drawn codes are kept for the life of the sheet, since at the faster speeds each comes round many times.
+
+The scanner asks for a camera picture every 20 ms instead of the plugin's default 250 ms. That is shorter than the gap between two pictures of a 30 pictures a second camera, so every picture is examined and a frame shown for 0.1 seconds gets about three attempts. Faster playback than that would leave the camera fewer than three pictures to a frame, many of them caught in the change from one code to the next.
 
 The assembler accepts frames in any order and ignores duplicates, rejects conflicting pieces or mixed transfers, then verifies the reconstructed token and its checksum before showing a preview. The receiver displays the number of collected pieces and remembers them across loops; the user can reset a partial transfer.
 
@@ -93,7 +97,7 @@ Dates are serialized as UTC ISO-8601 values and displayed in the device's local 
 
 ## Backups
 
-A backup is JSON with `format: "pocklino-backup"`, `version: 1`, an export timestamp, entries, collections and preferences. Export/import is capped at 10 MB (10 x 1024 x 1024 bytes). File readers bound incoming data while reading it, and the store validates the entire document before committing.
+A backup is JSON with `format: "pocklino-backup"`, `version: 1`, an export timestamp, entries, collections and preferences. An export has no size limit: whatever the notebook holds can always be written out. A restore reads its whole file into memory, so it refuses files above 50 MB (50 x 1024 x 1024 bytes); the file reader enforces that bound while reading, and the store validates the entire document before committing. A notebook that large is far beyond ordinary use, because the whole notebook is one database record that is rewritten on every save.
 
 Restore preserves existing entries. Equal IDs with identical serialized content are skipped; an equal ID with different content becomes a new page. Collections are combined. Preferences restore only into an empty notebook without an owner name. Invalid backups produce no partial merge. Backup files are readable and should be handled like the notes themselves.
 

@@ -312,13 +312,21 @@ void main() {
     });
 
     testWidgets('places, $look', (tester) async {
-      await open(tester, phone, night: night, extra: [_sealed()]);
+      await open(
+        tester,
+        phone,
+        night: night,
+        extra: [_sealed(), _watched().copyWith(archived: true)],
+      );
       await tapText(tester, 'Collections');
       await shot(tester, 'phone-$look-collections');
       await tapText(tester, 'Open later');
       await shot(tester, 'phone-$look-later');
       await tapText(tester, 'Archive');
       await shot(tester, 'phone-$look-archive');
+      await tapText(tester, 'Empty the archive');
+      await shot(tester, 'phone-$look-dialog-archive');
+      await tapText(tester, 'Keep them');
     });
 
     testWidgets('empty, $look', (tester) async {
@@ -354,6 +362,8 @@ void main() {
       await tapTip(tester, 'Create something');
       await tapText(tester, 'Note');
       await shot(tester, 'phone-$look-edit-new');
+      await tapTip(tester, 'Page actions');
+      await shot(tester, 'phone-$look-edit-menu');
     });
 
     testWidgets('wide editor, $look', (tester) async {
@@ -368,6 +378,11 @@ void main() {
       await shot(tester, 'phone-$look-settings');
       await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
       await shot(tester, 'phone-$look-settings-more');
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -520));
+      await shot(tester, 'phone-$look-settings-end');
+      await tapText(tester, 'Clear my pocket');
+      await shot(tester, 'phone-$look-dialog-clear');
+      await tapText(tester, 'Keep everything');
     });
 
     testWidgets('dialogs and pickers, $look', (tester) async {

@@ -55,14 +55,20 @@ Future<void> shareTextFile(
   }
 }
 
-Future<void> showPassSheet(BuildContext context, PocketEntry entry) async {
+/// With a [store], the sheet opens at the sharing speed chosen last time and
+/// remembers a new choice.
+Future<void> showPassSheet(
+  BuildContext context,
+  PocketEntry entry, {
+  AppStore? store,
+}) async {
   await showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     backgroundColor: Colors.transparent,
     constraints: const BoxConstraints(maxWidth: 560),
-    builder: (context) => _PassSheet(entry: entry),
+    builder: (context) => _PassSheet(entry: entry, store: store),
   );
 }
 
@@ -84,8 +90,9 @@ Future<void> showReceiveSheet(BuildContext context, AppStore store) async {
 }
 
 class _PassSheet extends StatefulWidget {
-  const _PassSheet({required this.entry});
+  const _PassSheet({required this.entry, this.store});
   final PocketEntry entry;
+  final AppStore? store;
 
   @override
   State<_PassSheet> createState() => _PassSheetState();
@@ -100,9 +107,19 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   final _shown = ValueNotifier<int>(0);
   int get _frame => _shown.value;
   set _frame(int value) => _shown.value = value;
-  int _frameDurationMs = 1000;
+  // Drawing a code takes a moment, and at the faster speeds each one comes
+  // round many times.
+  final _images = <int, QrImage>{};
+  late int _frameDurationMs =
+      widget.store?.sharingSpeed ?? AppStore.defaultSharingSpeed;
   bool _playing = true;
   bool _saving = false;
+
+  QrImage _imageAt(int frame) => _images[frame] ??= _passImage(_frames[frame]);
+
+  /// "0.5", or "0.15" for the one speed that needs the second decimal.
+  static String _seconds(int milliseconds) =>
+      (milliseconds / 1000).toStringAsFixed(milliseconds % 100 == 0 ? 1 : 2);
 
   @override
   void initState() {
@@ -129,8 +146,20 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   }
 
   void _setSpeed(double value) {
-    setState(() => _frameDurationMs = 2400 - value.round());
+    setState(() => _frameDurationMs = AppStore.sharingSpeeds[value.round()]);
     _startAnimation();
+  }
+
+  /// Keep the choice for the next page that is passed. The whole notebook is
+  /// written for this, so only once the slider is let go.
+  void _keepSpeed(double value) {
+    final store = widget.store;
+    if (store == null) return;
+    unawaited(
+      store
+          .updateSettings(sharingSpeed: AppStore.sharingSpeeds[value.round()])
+          .catchError((Object _) {}),
+    );
   }
 
   Future<void> _enlargeCode() => showDialog<void>(
@@ -158,7 +187,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                             valueListenable: _shown,
                             builder:
                                 (context, frame, _) => _PassQr(
-                                  data: _frames[frame],
+                                  image: _imageAt(frame),
                                   size: constraints.biggest.shortestSide,
                                   label:
                                       _frames.length == 1
@@ -320,7 +349,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   return _PassQr(
-                    data: _frames[_frame],
+                    image: _imageAt(_frame),
                     size: constraints.maxWidth.clamp(0.0, qrSize),
                     label:
                         'Pocklino pass code. Frame ${_frame + 1} of ${_frames.length}.',
@@ -348,7 +377,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '${(_frameDurationMs / 1000).toStringAsFixed(1)} s / frame',
+                  '${_seconds(_frameDurationMs)} s / frame',
                   style: PocketType.body(12, color: palette.muted),
                 ),
               ],
@@ -356,16 +385,17 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
             Semantics(
               label: 'Sharing speed',
               child: Slider(
-                value: (2400 - _frameDurationMs).toDouble(),
-                min: 400,
-                max: 2000,
-                divisions: 8,
-                label:
-                    '${(_frameDurationMs / 1000).toStringAsFixed(1)} seconds per frame',
+                // The steps are not even: they shorten toward the fast end.
+                value:
+                    AppStore.sharingSpeeds.indexOf(_frameDurationMs).toDouble(),
+                max: AppStore.sharingSpeeds.length - 1,
+                divisions: AppStore.sharingSpeeds.length - 1,
+                label: '${_seconds(_frameDurationMs)} seconds per frame',
                 semanticFormatterCallback:
                     (value) =>
-                        '${((2400 - value) / 1000).toStringAsFixed(1)} seconds per frame',
+                        '${_seconds(AppStore.sharingSpeeds[value.round()])} seconds per frame',
                 onChanged: _setSpeed,
+                onChangeEnd: _keepSpeed,
               ),
             ),
             Row(
@@ -530,9 +560,9 @@ QrImage _passImage(String data) {
 
 /// Keep a four-module white quiet zone, independent of QR version or size.
 class _PassQr extends StatelessWidget {
-  const _PassQr({required this.data, required this.size, required this.label});
+  const _PassQr({required this.image, required this.size, required this.label});
 
-  final String data;
+  final QrImage image;
   final double size;
   final String label;
 
@@ -545,7 +575,7 @@ class _PassQr extends StatelessWidget {
       child: CustomPaint(
         size: Size.square(size),
         painter: _QrMatrixPainter(
-          qr: _passImage(data),
+          qr: image,
           pixelRatio: MediaQuery.devicePixelRatioOf(context),
         ),
       ),
@@ -625,12 +655,13 @@ class _QrCameraState extends State<_QrCamera> with WidgetsBindingObserver {
     );
   }
 
-  // The default looks at one camera picture every 250 ms, which gives a
-  // moving code one or two attempts per frame at the faster speeds.
+  // The default looks at one camera picture every 250 ms. A moving code can
+  // change ten times a second, so every picture of the camera is looked at:
+  // 20 ms is shorter than the gap between two of them.
   final _controller = MobileScannerController(
     autoStart: false,
     formats: const [BarcodeFormat.qrCode],
-    detectionTimeoutMs: 50,
+    detectionTimeoutMs: 20,
   );
   bool _active = true;
   bool _disposed = false;

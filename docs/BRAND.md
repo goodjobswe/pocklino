@@ -2,7 +2,7 @@
 
 **A little space for your life.**
 
-Pocklino is a personal pocket for thoughts, plans, lists, films, and small lovely things. The interface is the mark at full size: bright paper things kept in an ink-blue pocket. It has no account, cloud, or recurring subscription implied by the identity.
+Pocklino is a personal pocket for thoughts, plans, lists, movies, and small lovely things. The interface is the mark at full size: bright paper things kept in an ink-blue pocket. It has no account, cloud, or recurring subscription implied by the identity.
 
 ## Logo and icon
 

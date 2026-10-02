@@ -12,8 +12,32 @@ import 'storage/database.dart';
 class AppStore extends ChangeNotifier {
   AppStore({Database? database}) : _database = database;
 
-  static const maxBackupBytes = 10 * 1024 * 1024;
+  // A restore reads its whole file into memory, so the file needs a bound.
+  // An export has none: whatever the notebook holds can always be saved.
+  static const maxRestoreBytes = 50 * 1024 * 1024;
   static const maxEntries = 10000;
+  static const defaultCollections = [
+    'Everyday',
+    'Watchlist',
+    'Adventures',
+    'Little joys',
+  ];
+
+  /// How long each frame of an animated sharing code can stay on screen, in
+  /// milliseconds, from slowest to fastest.
+  static const sharingSpeeds = [
+    2000,
+    1500,
+    1000,
+    700,
+    500,
+    400,
+    300,
+    200,
+    150,
+    100,
+  ];
+  static const defaultSharingSpeed = 500;
   static const _uuid = Uuid();
   static final _record = stringMapStoreFactory
       .store('pocklino')
@@ -23,19 +47,18 @@ class AppStore extends ChangeNotifier {
   Future<void>? _initialization;
   Future<void> _tail = Future<void>.value();
   List<PocketEntry> _entries = [];
-  List<String> _collections = [
-    'Everyday',
-    'Watchlist',
-    'Adventures',
-    'Little joys',
-  ];
+  List<String> _collections = [...defaultCollections];
   String _ownerName = '';
   String _themePreference = 'system';
+  int _sharingSpeed = defaultSharingSpeed;
 
   List<PocketEntry> get entries => List.unmodifiable(_entries);
   List<String> get collections => List.unmodifiable(_collections);
   String get ownerName => _ownerName;
   String get themePreference => _themePreference;
+
+  /// One of [sharingSpeeds], as last chosen on the pass sheet.
+  int get sharingSpeed => _sharingSpeed;
 
   Future<void> initialize() =>
       _initialization ??= _initialize().catchError((
@@ -55,6 +78,7 @@ class AppStore extends ChangeNotifier {
       _collections = parsed.collections;
       _ownerName = parsed.ownerName;
       _themePreference = parsed.themePreference;
+      _sharingSpeed = _nearestSpeed(state['sharingSpeed']);
     }
     notifyListeners();
   }
@@ -72,6 +96,7 @@ class AppStore extends ChangeNotifier {
     List<String>? collections,
     String? ownerName,
     String? themePreference,
+    int? sharingSpeed,
   }) async {
     if (entries.length > maxEntries) {
       throw const FormatException(
@@ -91,18 +116,21 @@ class AppStore extends ChangeNotifier {
     }
     final nextName = ownerName ?? _ownerName;
     final nextTheme = themePreference ?? _themePreference;
+    final nextSpeed = sharingSpeed ?? _sharingSpeed;
     final state = <String, Object?>{
       'version': 1,
       'entries': entries.map((entry) => entry.toJson()).toList(),
       'collections': nextCollections,
       'ownerName': nextName,
       'themePreference': nextTheme,
+      'sharingSpeed': nextSpeed,
     };
     await _database!.transaction((txn) => _record.put(txn, state));
     _entries = List.of(entries);
     _collections = nextCollections;
     _ownerName = nextName;
     _themePreference = nextTheme;
+    _sharingSpeed = nextSpeed;
     notifyListeners();
   }
 
@@ -121,6 +149,37 @@ class AppStore extends ChangeNotifier {
 
   Future<void> remove(String id) => _mutate(() async {
     await _save(entries: _entries.where((entry) => entry.id != id).toList());
+  });
+
+  /// Delete every archived page. Returns them, so the caller can offer to
+  /// [putBack] what was removed.
+  Future<List<PocketEntry>> clearArchive() => _mutate(() async {
+    final removed = _entries.where((entry) => entry.archived).toList();
+    if (removed.isNotEmpty) {
+      await _save(entries: _entries.where((entry) => !entry.archived).toList());
+    }
+    return removed;
+  });
+
+  /// Delete every page and every collection that was added. The name, the
+  /// look and the sharing speed stay.
+  Future<void> clearAll() => _mutate(() async {
+    await _save(entries: const [], collections: defaultCollections);
+  });
+
+  /// Undo a clear: pages come back unless their place has been taken.
+  Future<void> putBack(
+    List<PocketEntry> entries, {
+    List<String> collections = const [],
+  }) => _mutate(() async {
+    final present = {for (final entry in _entries) entry.id};
+    await _save(
+      entries: [
+        ..._entries,
+        ...entries.where((entry) => !present.contains(entry.id)),
+      ],
+      collections: {..._collections, ...collections}.toList(),
+    );
   });
 
   Future<PocketEntry> duplicate(PocketEntry entry) => _mutate(() async {
@@ -195,25 +254,29 @@ class AppStore extends ChangeNotifier {
     );
   });
 
-  Future<void> updateSettings({String? ownerName, String? themePreference}) =>
-      _mutate(() async {
-        if (ownerName != null && ownerName.length > 100) {
-          throw const FormatException(
-            'Please use a name with 100 characters or fewer.',
-          );
-        }
-        if (themePreference != null &&
-            !['system', 'light', 'dark'].contains(themePreference)) {
-          throw const FormatException(
-            'Choose a system, light, or dark appearance.',
-          );
-        }
-        await _save(
-          entries: _entries,
-          ownerName: ownerName?.trim(),
-          themePreference: themePreference,
-        );
-      });
+  Future<void> updateSettings({
+    String? ownerName,
+    String? themePreference,
+    int? sharingSpeed,
+  }) => _mutate(() async {
+    if (ownerName != null && ownerName.length > 100) {
+      throw const FormatException(
+        'Please use a name with 100 characters or fewer.',
+      );
+    }
+    if (themePreference != null &&
+        !['system', 'light', 'dark'].contains(themePreference)) {
+      throw const FormatException(
+        'Choose a system, light, or dark appearance.',
+      );
+    }
+    await _save(
+      entries: _entries,
+      ownerName: ownerName?.trim(),
+      themePreference: themePreference,
+      sharingSpeed: sharingSpeed == null ? null : _nearestSpeed(sharingSpeed),
+    );
+  });
 
   Future<PocketEntry> importEntry(PocketEntry entry) => _mutate(() async {
     final valid = PocketEntry.fromJson(entry.toJson());
@@ -231,7 +294,7 @@ class AppStore extends ChangeNotifier {
   });
 
   String exportBackup() {
-    final data = jsonEncode({
+    return jsonEncode({
       'format': 'pocklino-backup',
       'version': 1,
       'exportedAt': DateTime.now().toUtc().toIso8601String(),
@@ -240,22 +303,16 @@ class AppStore extends ChangeNotifier {
       'ownerName': _ownerName,
       'themePreference': _themePreference,
     });
-    if (utf8.encode(data).length > maxBackupBytes) {
-      throw const FormatException(
-        'This backup is larger than the supported 10 MB limit. Export individual notes first.',
-      );
-    }
-    return data;
   }
 
   /// Validate everything before writing. Exact matches are skipped; a changed
   /// page with an existing ID is preserved as a new copy. Existing pages are
   /// never removed. Preferences restore only into an otherwise empty notebook.
   Future<int> restoreBackup(String source) => _mutate(() async {
-    if (source.length > maxBackupBytes ||
-        utf8.encode(source).length > maxBackupBytes) {
+    // The file reader bounds the bytes. A string is never longer than those.
+    if (source.length > maxRestoreBytes) {
       throw const FormatException(
-        'Choose a Pocklino backup smaller than 10 MB.',
+        'Choose a Pocklino backup smaller than 50 MB.',
       );
     }
     dynamic decoded;
@@ -412,6 +469,15 @@ class AppStore extends ChangeNotifier {
   Future<void> clearExamples() => _mutate(() async {
     await _save(entries: _entries.where((entry) => !entry.isExample).toList());
   });
+}
+
+/// A stored speed that is missing or not on the list must never keep the
+/// notebook from opening, so it settles on the nearest one instead.
+int _nearestSpeed(Object? value) {
+  if (value is! int) return AppStore.defaultSharingSpeed;
+  return AppStore.sharingSpeeds.reduce(
+    (a, b) => (a - value).abs() <= (b - value).abs() ? a : b,
+  );
 }
 
 String _validateCollection(String name) {

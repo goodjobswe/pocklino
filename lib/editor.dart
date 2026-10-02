@@ -242,7 +242,137 @@ class _EntryEditorState extends State<EntryEditor> with WidgetsBindingObserver {
       toast(context, 'Add a little something before passing it on.');
       return;
     }
-    if (await save() && mounted) await showPassSheet(context, snapshot());
+    if (await save() && mounted) {
+      await showPassSheet(context, snapshot(), store: store);
+    }
+  }
+
+  /// Move the page to the archive, or bring it back, and return to the pocket.
+  Future<void> setArchived(bool archived) async {
+    if (closing) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final message = archived ? 'Moved to the archive.' : 'Back in your pocket.';
+    if (entry.isLocked) {
+      // A sealed page has nothing to save but this.
+      closing = true;
+      try {
+        await store.upsert(entry.copyWith(archived: archived));
+      } catch (_) {
+        closing = false;
+        if (mounted) {
+          toast(context, 'That change could not be saved. Please try again.');
+        }
+        return;
+      }
+      if (mounted) Navigator.pop(context);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+      return;
+    }
+    closing = true;
+    update(entry.copyWith(archived: archived));
+    final saved = await save();
+    if (!mounted) return;
+    if (!saved) {
+      closing = false;
+      setState(() => entry = entry.copyWith(archived: !archived));
+      toast(context, 'That change could not be saved. Please try again.');
+      return;
+    }
+    Navigator.pop(context);
+    // A new page that was still empty was never saved, so nothing moved.
+    if (store.entries.any((saved) => saved.id == entry.id)) {
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  /// Delete the page and return to the pocket, where it can be undone.
+  Future<void> delete() async {
+    if (closing) return;
+    closing = true;
+    debounce?.cancel();
+    final messenger = ScaffoldMessenger.of(context);
+    // A save on its way must land first, or it would bring the page back.
+    await writes;
+    final stored =
+        store.entries.where((saved) => saved.id == entry.id).firstOrNull;
+    // What Undo brings back: the page as it reads now, words not yet saved
+    // included.
+    final wasDirty = dirty;
+    final last = entry.isLocked || !wasDirty ? stored : snapshot();
+    dirty = false;
+    try {
+      if (stored != null) await store.remove(entry.id);
+    } catch (_) {
+      dirty = wasDirty;
+      closing = false;
+      if (mounted) toast(context, 'This item could not be removed.');
+      return;
+    }
+    if (mounted) Navigator.pop(context);
+    if (last == null) return;
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('“${last.title}” removed'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            try {
+              await store.upsert(last);
+            } catch (_) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('The page could not be brought back.'),
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  }
+
+  /// The same two actions as on the page's card in the pocket.
+  Widget pageMenu() {
+    PopupMenuItem<String> action(String value, IconData icon, String label) =>
+        PopupMenuItem(
+          value: value,
+          child: Row(
+            children: [
+              Icon(icon, size: 19),
+              const SizedBox(width: 12),
+              Text(label),
+            ],
+          ),
+        );
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: MenuButton<String>(
+        tooltip: 'Page actions',
+        onSelected:
+            (choice) =>
+                choice == 'delete' ? delete() : setArchived(!entry.archived),
+        items:
+            () => [
+              action(
+                'archive',
+                entry.archived
+                    ? Icons.unarchive_outlined
+                    : Icons.inventory_2_outlined,
+                entry.archived ? 'Bring back' : 'Archive',
+              ),
+              action('delete', Icons.delete_outline_rounded, 'Delete'),
+            ],
+        child: const SizedBox.square(
+          dimension: 44,
+          child: Icon(Icons.more_vert_rounded),
+        ),
+      ),
+    );
   }
 
   @override
@@ -292,7 +422,7 @@ class _EntryEditorState extends State<EntryEditor> with WidgetsBindingObserver {
               ),
             if (!locked)
               Padding(
-                padding: const EdgeInsets.only(left: 4, right: 14),
+                padding: const EdgeInsets.only(left: 4, right: 4),
                 child: FilledButton.icon(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 40),
@@ -303,6 +433,7 @@ class _EntryEditorState extends State<EntryEditor> with WidgetsBindingObserver {
                   label: const Text('Pass'),
                 ),
               ),
+            pageMenu(),
           ],
         ),
         body:

@@ -260,11 +260,157 @@ void main() {
         expect(store.entries, hasLength(1));
         expect(store.entries.single.toJson(), before);
         await expectLater(
-          store.restoreBackup('x' * (AppStore.maxBackupBytes + 1)),
+          store.restoreBackup('x' * (AppStore.maxRestoreBytes + 1)),
           throwsFormatException,
         );
       },
     );
+
+    test(
+      'a notebook past the old 10 MB limit still exports and restores',
+      () async {
+        // 60 pages of 200,000 characters: about 12 MB of backup.
+        final body = 'Long page. ' * 18181;
+        for (var index = 0; index < 60; index++) {
+          await store.upsert(
+            makeEntry(id: 'long-$index').copyWith(body: '$index $body'),
+          );
+        }
+        final backup = store.exportBackup();
+        expect(backup.length, greaterThan(10 * 1024 * 1024));
+        expect(backup.length, lessThan(AppStore.maxRestoreBytes));
+
+        final otherDatabase = await databaseFactoryMemory.openDatabase(
+          'restore-${DateTime.now().microsecondsSinceEpoch}',
+        );
+        final other = AppStore(database: otherDatabase);
+        await other.initialize();
+        addTearDown(() async {
+          other.dispose();
+          await otherDatabase.close();
+        });
+        expect(await other.restoreBackup(backup), 60);
+        expect(
+          other.entries.map((entry) => entry.toJson()).toList(),
+          store.entries.map((entry) => entry.toJson()).toList(),
+        );
+      },
+    );
+
+    test('the sharing speed is kept, and a bad stored one cannot block '
+        'the notebook', () async {
+      expect(store.sharingSpeed, AppStore.defaultSharingSpeed);
+      expect(AppStore.sharingSpeeds, contains(AppStore.defaultSharingSpeed));
+      expect(AppStore.sharingSpeeds.first, 2000);
+      expect(AppStore.sharingSpeeds.last, 100);
+      await store.upsert(makeEntry());
+      await store.updateSettings(sharingSpeed: 100);
+      expect(store.sharingSpeed, 100);
+      // Not a speed on the list: the nearest one is kept instead.
+      await store.updateSettings(sharingSpeed: 160);
+      expect(store.sharingSpeed, 150);
+      // Other changes leave it alone.
+      await store.updateSettings(ownerName: 'Glenn');
+      await store.upsert(makeEntry(id: 'two'));
+      expect(store.sharingSpeed, 150);
+
+      final reopened = AppStore(database: database);
+      await reopened.initialize();
+      expect(reopened.sharingSpeed, 150);
+      expect(reopened.entries, hasLength(2));
+      reopened.dispose();
+
+      // It is a preference of this device, not part of a backup.
+      expect(jsonDecode(store.exportBackup()), isNot(contains('sharingSpeed')));
+
+      for (final stored in ['fast', -5, 1e9, null]) {
+        final record = stringMapStoreFactory.store('pocklino').record('state');
+        final state = Map<String, Object?>.from((await record.get(database))!);
+        if (stored == null) {
+          state.remove('sharingSpeed');
+        } else {
+          state['sharingSpeed'] = stored;
+        }
+        await record.put(database, state);
+        final next = AppStore(database: database);
+        await next.initialize();
+        expect(next.entries, hasLength(2));
+        expect(AppStore.sharingSpeeds, contains(next.sharingSpeed));
+        next.dispose();
+      }
+    });
+
+    test(
+      'emptying the archive keeps the pocket, and can be put back',
+      () async {
+        await store.upsert(makeEntry(id: 'kept'));
+        await store.upsert(makeEntry(id: 'old-1').copyWith(archived: true));
+        await store.upsert(makeEntry(id: 'old-2').copyWith(archived: true));
+        final removed = await store.clearArchive();
+        expect(removed.map((entry) => entry.id), ['old-1', 'old-2']);
+        expect(store.entries.map((entry) => entry.id), ['kept']);
+        expect(await store.clearArchive(), isEmpty);
+
+        // A page made in the meantime keeps its place.
+        await store.upsert(makeEntry(id: 'old-1', title: 'Newer'));
+        await store.putBack(removed);
+        expect(store.entries.map((entry) => entry.id), [
+          'kept',
+          'old-1',
+          'old-2',
+        ]);
+        expect(
+          store.entries.firstWhere((entry) => entry.id == 'old-1').title,
+          'Newer',
+        );
+        expect(
+          store.entries.firstWhere((entry) => entry.id == 'old-2').archived,
+          isTrue,
+        );
+      },
+    );
+
+    test('clearing the pocket deletes every page and added collection, '
+        'keeps the preferences, and can be put back', () async {
+      await store.updateSettings(
+        ownerName: 'Glenn',
+        themePreference: 'dark',
+        sharingSpeed: 200,
+      );
+      await store.addCollection('Summer');
+      await store.upsert(makeEntry(id: 'one', collection: 'Summer'));
+      await store.upsert(makeEntry(id: 'two').copyWith(archived: true));
+      await store.upsert(
+        makeEntry(
+          id: 'sealed',
+          kind: EntryKind.letter,
+          received: true,
+          unlockAt: DateTime.now().add(const Duration(days: 3)),
+        ),
+      );
+      final pages = store.entries;
+      final collections = store.collections;
+
+      await store.clearAll();
+      expect(store.entries, isEmpty);
+      expect(store.collections, AppStore.defaultCollections);
+      expect(store.ownerName, 'Glenn');
+      expect(store.themePreference, 'dark');
+      expect(store.sharingSpeed, 200);
+
+      final reopened = AppStore(database: database);
+      await reopened.initialize();
+      expect(reopened.entries, isEmpty);
+      expect(reopened.ownerName, 'Glenn');
+      reopened.dispose();
+
+      await store.putBack(pages, collections: collections);
+      expect(
+        store.entries.map((entry) => entry.toJson()).toList(),
+        pages.map((entry) => entry.toJson()).toList(),
+      );
+      expect(store.collections, containsAll(collections));
+    });
 
     test(
       'examples are optional, idempotent, and can be removed separately',

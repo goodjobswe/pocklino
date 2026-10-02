@@ -4,7 +4,7 @@ Version 1.0.0 is published as a signed APK and a Windows ZIP on GitHub, not thro
 
 ## Automated checks
 
-Latest completed run, October 2, 2026, for version 1.0.2: **`flutter analyze` has no issues; all 63 Flutter tests pass.** This includes seventeen home/editor interaction tests, a check that the version in Settings matches `pubspec.yaml`, single/multipart QR transfers in both format versions, sharing-speed controls, and camera close/reopen sequencing.
+Latest completed run, October 2, 2026, for version 1.0.0: **`flutter analyze` has no issues; all 72 Flutter tests pass.** This includes twenty-two home/editor interaction tests, a check that the version in Settings matches `pubspec.yaml`, single/multipart QR transfers in both format versions, sharing-speed controls, and camera close/reopen sequencing.
 
 Run from the repository root:
 
@@ -19,11 +19,15 @@ The suite covers:
 - Model validation, immutable list contents, Unicode and date roundtrips.
 - Persistence/reopening, ordered concurrent edits, failed writes and initialization retry.
 - Independent received copies, collection removal, optional examples and their exact Unicode artwork/text.
-- Backup roundtrip, preferences, duplicate/conflict handling and atomic rejection of invalid input.
+- Backup roundtrip, preferences, duplicate/conflict handling and atomic rejection of invalid input; a 12 MB notebook exports and restores.
+- The saved sharing speed, including a damaged stored value; emptying the archive and clearing the pocket in the store, each with its put-back.
 - Single and multipart transfer roundtrips, reordered/repeated frames, malformed input, integrity failure and size limits, for version 1 and version 2.
-- Version 2 codes: base45 against the RFC 9285 examples and an independent encoder, no frame denser than a 57 by 57 alphanumeric code, earlier version 1 codes still received, and a refusal to inflate past the entry size limit.
+- Version 2 codes: base45 against the RFC 9285 examples and an independent encoder, no frame denser than a 57 by 57 alphanumeric code, version 1 codes still received, and a refusal to inflate past the entry size limit.
 - UI creation/autosave, saving on departure, clearing an already-autosaved new note, edited-example preservation, checklist actions and narrow-screen layout.
 - Card menus: deleting with undo while the menu is still closing, archiving to the Archive place and bringing back, and adding a collection after cancelling its dialog.
+- The open page's own menu: archive, bring back, and delete with words the autosave had not written yet, restored by Undo; deleting a new page that was never saved.
+- Emptying the archive and clearing the whole pocket from Settings: cancel, confirm and Undo.
+- The sharing speed chosen for one page is there for the next, from a card and from inside a page.
 - The empty pocket's own button for a first page, the side panel on a wide window, and a failed save that leaves the cursor in its field.
 - Button roles for the papers on the create sheet, as a screen reader hears them.
 - Concealment of future letters in cards/search/editor and receive previews, and of a sealed page of any other kind on its card and in the editor.
@@ -95,9 +99,12 @@ Browser camera access requires HTTPS or localhost and permission. A desktop brow
 
 Completed on October 2, 2026, with version 1.0.0:
 
-- [x] Built the release APK with the application ID `nu.goodjob.pocklino`, signed with the upload key. Checked the signature, and that the merged manifest asks for the camera only, with no `INTERNET` or `ACCESS_NETWORK_STATE`.
-- [x] Installed that build on an Android 15 emulator and walked through the empty pocket, the examples, the create sheet, a note, a letter, collections and the evening appearance by their accessibility labels. The device log showed no Flutter errors. This does not verify camera capture.
-- [x] Ran the release workflow by hand on GitHub Actions: it built the signed APK, with the same certificate and permissions as the local build, and the Windows ZIP with the executable, the DLLs and the data folder.
+- [x] Built the release APK with the application ID `nu.goodjob.pocklino`, signed with the upload key. The merged manifest asks for the camera only, with no `INTERNET` or `ACCESS_NETWORK_STATE`.
+- [x] Installed that build on an Android 15 emulator as an update over an earlier build signed with the same key: the notes were kept. Walked through the pocket with the examples, the create sheet, a note, a letter, the pass sheet with an animated code, collections, settings and the evening appearance. This does not verify camera capture.
+
+Completed the same day with preview builds, made by the same workflow before the first release:
+
+- [x] The release workflow on GitHub Actions built the signed APK, with the same certificate and permissions as the local build, and the Windows ZIP with the executable, the DLLs and the data folder. The workflow refuses an APK signed with the debug key.
 - [x] Started the Windows executable from that ZIP in a brief smoke check: it stayed running for six seconds, drew its window and wrote nothing to stdout or stderr. File and share dialogs were not exercised.
 
 ## Physical Android and iOS checks still required
@@ -107,10 +114,10 @@ Use two devices, preferably one Android phone and one iPhone. Include one older 
 - [ ] Launch, create and reopen notes in airplane mode.
 - [ ] Pass a short page with one QR in both directions and verify exact Unicode, checkboxes, links and dates.
 - [ ] Pass a long page with animated frames; miss frames, pause, resume and verify full reconstruction without duplication.
-- [ ] Adjust Sharing speed while the receiver is collecting pieces. Try 2.0, 1.0 and 0.4 seconds per frame on different phones, confirm existing progress stays, and verify slower playback helps when frames are missed.
+- [ ] Adjust Sharing speed while the receiver is collecting pieces. Try 2.0, 0.5 and 0.1 seconds per frame on different phones, confirm existing progress stays, and verify slower playback helps when frames are missed.
 - [ ] Confirm the QR and slider are visible together on a short phone, and enlarge a static and an animated code without losing the sharing sheet.
-- [ ] Pass a long page from a computer monitor to a phone, at the normal size and enlarged. Both devices need a build with the version 2 QR format.
-- [ ] Show a code from release 1.0.1 or earlier to a current receiver and verify it is still read.
+- [x] Pass a long page from a computer monitor to a phone. Checked on October 2, 2026 with a preview build that had the same QR format: the Windows app on a monitor to an Android phone, without a missed frame at 0.4 seconds per frame.
+- [ ] Repeat that at the faster speeds, down to 0.1 seconds per frame, and with the code enlarged. These have not been tried with a camera.
 - [ ] Scan a different sender mid-transfer, reset, and receive correctly. Repeated scans must not import automatically.
 - [ ] Preview, cancel and keep each content type; imports must create separate IDs and leave originals untouched.
 - [ ] Deny camera permission, grant it later and reopen; backgrounds/foregrounds and closing the sheet release/recover the camera.

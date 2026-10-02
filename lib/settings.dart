@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'design.dart';
@@ -8,7 +9,7 @@ import 'store.dart';
 import 'ui_helpers.dart';
 
 /// The version shown to people. A test keeps it in step with pubspec.yaml.
-const appVersion = '1.0.2';
+const appVersion = '1.0.0';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.store});
@@ -63,27 +64,28 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (result == null) return;
     final file = result.files.single;
-    if (file.size > AppStore.maxBackupBytes) {
+    if (file.size > AppStore.maxRestoreBytes) {
       throw const FormatException(
-        'Choose a Pocklino backup smaller than 10 MB.',
+        'Choose a Pocklino backup smaller than 50 MB.',
       );
     }
-    final bytes = <int>[];
+    // A plain list of numbers would take eight times the room of the file.
+    final bytes = BytesBuilder(copy: false);
     if (file.readStream != null) {
       await for (final chunk in file.readStream!) {
-        if (bytes.length + chunk.length > AppStore.maxBackupBytes) {
+        if (bytes.length + chunk.length > AppStore.maxRestoreBytes) {
           throw const FormatException('This backup is too large.');
         }
-        bytes.addAll(chunk);
+        bytes.add(chunk);
       }
     } else if (file.bytes != null) {
-      bytes.addAll(file.bytes!);
+      bytes.add(file.bytes!);
     } else {
       throw const FormatException(
         'This file could not be read. Please choose it again.',
       );
     }
-    final data = utf8.decode(bytes);
+    final data = utf8.decode(bytes.takeBytes());
     if (!mounted) return;
     final yes = await showDialog<bool>(
       context: context,
@@ -113,6 +115,62 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> saveName() =>
       run(() => store.updateSettings(ownerName: name.text.trim()));
+
+  Future<void> clearPocket() => run(() async {
+    final pages = store.entries;
+    final collections = store.collections;
+    final count = pages.length;
+    final yes = await showDialog<bool>(
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Clear your whole pocket?'),
+            content: Text(
+              'This deletes ${count == 1 ? 'the 1 page' : 'all $count pages'} on this device, '
+              'archived pages and sealed envelopes included, and the collections you added. '
+              'Your name and look stay.\n\n'
+              'Export a backup first if you may want any of it back.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep everything'),
+              ),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: Theme.of(ctx).colorScheme.error,
+                  foregroundColor: Theme.of(ctx).colorScheme.onError,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Delete everything'),
+              ),
+            ],
+          ),
+    );
+    if (yes != true || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    await store.clearAll();
+    messenger.showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 10),
+        content: const Text('Your pocket is empty.'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            try {
+              await store.putBack(pages, collections: collections);
+            } catch (_) {
+              messenger.showSnackBar(
+                const SnackBar(
+                  content: Text('The pages could not be brought back.'),
+                ),
+              );
+            }
+          },
+        ),
+      ),
+    );
+  });
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -297,6 +355,20 @@ class _SettingsPageState extends State<SettingsPage> {
                         subtitle: 'Your own items stay exactly where they are.',
                         onTap: busy ? null : () => run(store.clearExamples),
                       ),
+                  ],
+                ),
+                const _Section('A fresh start'),
+                _Panel(
+                  children: [
+                    _Action(
+                      icon: Icons.delete_sweep_outlined,
+                      title: 'Clear my pocket',
+                      subtitle:
+                          store.entries.isEmpty
+                              ? 'Your pocket is already empty.'
+                              : 'Delete every page, the archive included.',
+                      onTap: busy || store.entries.isEmpty ? null : clearPocket,
+                    ),
                   ],
                 ),
                 const _Section('The small print'),

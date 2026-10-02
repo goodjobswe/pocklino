@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show SemanticsAction, SemanticsFlag;
 
 import 'package:flutter/material.dart';
@@ -91,6 +92,41 @@ Future<void> _clearExamples(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(clear);
   await tester.pumpAndSettle();
+}
+
+PocketEntry _page(String title, {String body = '', bool archived = false}) {
+  final now = DateTime.now();
+  return PocketEntry(
+    id: title,
+    title: title,
+    body: body,
+    kind: EntryKind.note,
+    createdAt: now,
+    updatedAt: now,
+    archived: archived,
+  );
+}
+
+/// Made-up words, enough of them for an animated sharing code.
+String _longBody(int seed) {
+  final random = math.Random(seed);
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  return List.generate(
+    500,
+    (_) =>
+        List.generate(
+          2 + random.nextInt(7),
+          (_) => letters[random.nextInt(letters.length)],
+        ).join(),
+  ).join(' ');
+}
+
+/// Lets the notices from earlier steps run out, so the next one shows.
+Future<void> _clearNotices(WidgetTester tester) async {
+  for (var i = 0; i < 3; i++) {
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> _waitForAutosave(WidgetTester tester) async {
@@ -413,6 +449,224 @@ void main() {
     await tester.pumpAndSettle();
     expect(pocket.store.entries.single.archived, isFalse);
     expect(find.text('Nothing archived.'), findsOneWidget);
+  });
+
+  testWidgets('A page can be archived, brought back and deleted from its own '
+      'menu, and the delete undone', (tester) async {
+    final pocket = await _openPocket(
+      tester,
+      size: _phone,
+      entries: [_page('Keep for later')],
+    );
+    await tester.tap(find.text('Keep for later'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsOneWidget);
+    await tester.tap(find.byTooltip('Page actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Archive').last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(EntryEditor), findsNothing);
+    expect(pocket.store.entries.single.archived, isTrue);
+    expect(find.text('Moved to the archive.'), findsOneWidget);
+    expect(find.text('Keep for later'), findsNothing);
+    await _clearNotices(tester);
+
+    await tester.tap(find.text('Archive'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keep for later'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Page actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bring back'));
+    await tester.pumpAndSettle();
+    expect(find.byType(EntryEditor), findsNothing);
+    expect(pocket.store.entries.single.archived, isFalse);
+    expect(find.text('Back in your pocket.'), findsOneWidget);
+    await _clearNotices(tester);
+
+    // Delete with words that the autosave has not written yet.
+    await tester.tap(find.text('Pocket'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keep for later'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _fieldWithHint('Let your thoughts land here.'),
+      'Written a moment ago',
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byTooltip('Page actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(EntryEditor), findsNothing);
+    expect(pocket.store.entries, isEmpty);
+    // No late save brings the page back.
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(pocket.store.entries, isEmpty);
+    expect(find.text('“Keep for later” removed'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(pocket.store.entries.single.title, 'Keep for later');
+    expect(pocket.store.entries.single.body, 'Written a moment ago');
+    expect(find.text('Keep for later'), findsOneWidget);
+  });
+
+  testWidgets('Deleting a new page that was never saved just closes it', (
+    tester,
+  ) async {
+    final pocket = await _openPocket(tester, size: _phone);
+    await _create(tester, 'Note');
+    await tester.tap(find.byTooltip('Page actions'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byType(EntryEditor), findsNothing);
+    expect(pocket.store.entries, isEmpty);
+    expect(find.text('Undo'), findsNothing);
+  });
+
+  testWidgets('The archive can be emptied after a confirmation, and undone', (
+    tester,
+  ) async {
+    final pocket = await _openPocket(
+      tester,
+      size: _phone,
+      entries: [
+        _page('Still here'),
+        _page('Old one', archived: true),
+        _page('Old two', archived: true),
+      ],
+    );
+    expect(find.text('Empty the archive'), findsNothing);
+    await tester.tap(find.text('Archive'));
+    await tester.pumpAndSettle();
+    expect(find.text('Old one'), findsOneWidget);
+
+    await tester.tap(find.text('Empty the archive'));
+    await tester.pumpAndSettle();
+    expect(find.text('Empty the archive?'), findsOneWidget);
+    expect(find.textContaining('all 2 archived pages'), findsOneWidget);
+    await tester.tap(find.text('Keep them'));
+    await tester.pumpAndSettle();
+    expect(pocket.store.entries, hasLength(3));
+
+    await tester.tap(find.text('Empty the archive'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Empty the archive').last);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(pocket.store.entries.map((entry) => entry.title), ['Still here']);
+    expect(find.text('Nothing archived.'), findsOneWidget);
+    expect(find.text('Empty the archive'), findsNothing);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(pocket.store.entries, hasLength(3));
+    expect(pocket.store.entries.where((entry) => entry.archived), hasLength(2));
+    expect(find.text('Old two'), findsOneWidget);
+  });
+
+  testWidgets('Settings can clear the whole pocket after a confirmation, and '
+      'undo it', (tester) async {
+    final pocket = await _openPocket(
+      tester,
+      size: _phone,
+      entries: [_page('In the pocket'), _page('Put away', archived: true)],
+    );
+    await pocket.store.addCollection('Summer');
+    await pocket.store.updateSettings(ownerName: 'Glenn');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    final clear = find.text('Clear my pocket');
+    await tester.scrollUntilVisible(
+      clear,
+      300,
+      scrollable:
+          find
+              .descendant(
+                of: find.byType(ListView),
+                matching: find.byType(Scrollable),
+              )
+              .first,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(clear);
+    await tester.pumpAndSettle();
+    expect(find.text('Clear your whole pocket?'), findsOneWidget);
+    expect(find.textContaining('all 2 pages'), findsOneWidget);
+    await tester.tap(find.text('Keep everything'));
+    await tester.pumpAndSettle();
+    expect(pocket.store.entries, hasLength(2));
+
+    await tester.tap(clear);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete everything'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(pocket.store.entries, isEmpty);
+    expect(pocket.store.collections, AppStore.defaultCollections);
+    expect(pocket.store.ownerName, 'Glenn');
+    expect(find.text('Your pocket is already empty.'), findsOneWidget);
+
+    await tester.tap(find.text('Undo'));
+    await tester.pumpAndSettle();
+    expect(pocket.store.entries.map((entry) => entry.title), [
+      'In the pocket',
+      'Put away',
+    ]);
+    expect(pocket.store.entries.last.archived, isTrue);
+    expect(pocket.store.collections, contains('Summer'));
+  });
+
+  testWidgets('The sharing speed chosen for one page is there for the next', (
+    tester,
+  ) async {
+    final pocket = await _openPocket(
+      tester,
+      size: _phone,
+      entries: [
+        _page('First long page', body: _longBody(1)),
+        _page('Second long page', body: _longBody(2)),
+      ],
+    );
+    expect(pocket.store.sharingSpeed, AppStore.defaultSharingSpeed);
+    await tester.tap(find.byTooltip('Item actions').first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pass a copy'));
+    await tester.pumpAndSettle();
+    expect(find.text('0.5 s / frame'), findsOneWidget);
+    // The Slower end: the fastest speed would never let the test settle.
+    final slider = tester.getRect(find.byType(Slider));
+    await tester.tapAt(Offset(slider.left + 24, slider.center.dy));
+    await tester.pumpAndSettle();
+    expect(find.text('2.0 s / frame'), findsOneWidget);
+    expect(pocket.store.sharingSpeed, 2000);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    // From the other page's card.
+    await tester.tap(find.byTooltip('Item actions').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pass a copy'));
+    await tester.pumpAndSettle();
+    expect(find.text('2.0 s / frame'), findsOneWidget);
+    await tester.tap(find.byTooltip('Close'));
+    await tester.pumpAndSettle();
+
+    // And from inside a page.
+    await tester.tap(find.text('Second long page'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pass'));
+    await tester.pumpAndSettle();
+    expect(find.text('2.0 s / frame'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('A collection can be added after cancelling the dialog once', (

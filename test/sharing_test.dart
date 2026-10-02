@@ -237,8 +237,8 @@ void main() {
       expect(frameCount, greaterThan(5));
       expect(shownModules(tester), lessThanOrEqualTo(57));
       expect(find.text('Frame 1 of $frameCount'), findsOneWidget);
-      expect(find.text('1.0 s / frame'), findsOneWidget);
-      await tester.pump(const Duration(milliseconds: 649));
+      expect(find.text('0.5 s / frame'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 149));
       expect(find.text('Frame 1 of $frameCount'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 1));
       expect(find.text('Frame 2 of $frameCount'), findsOneWidget);
@@ -259,7 +259,8 @@ void main() {
       expect(find.byTooltip('Play QR animation'), findsOneWidget);
       await tester.tapAt(Offset(slider.right - 24, slider.center.dy));
       await tester.pump();
-      expect(find.text('0.4 s / frame'), findsOneWidget);
+      // The Faster end is ten frames a second.
+      expect(find.text('0.1 s / frame'), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
       expect(find.text('Frame 3 of $frameCount'), findsOneWidget);
       await tester.tap(find.byTooltip('Next QR frame'));
@@ -267,10 +268,18 @@ void main() {
       expect(find.text('Frame 4 of $frameCount'), findsOneWidget);
       await tester.tap(find.byTooltip('Play QR animation'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 399));
+      await tester.pump(const Duration(milliseconds: 99));
       expect(find.text('Frame 4 of $frameCount'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 1));
       expect(find.text('Frame 5 of $frameCount'), findsOneWidget);
+      // Every step of the slider is a speed, the one between the two
+      // fastest included.
+      await tester.tap(find.byTooltip('Pause QR animation'));
+      await tester.pump();
+      final step = (slider.width - 48) / 9;
+      await tester.tapAt(Offset(slider.right - 24 - step, slider.center.dy));
+      await tester.pump();
+      expect(find.text('0.15 s / frame'), findsOneWidget);
       await tester.ensureVisible(find.byTooltip('Close'));
       await tester.tap(find.byTooltip('Close'));
       await tester.pumpAndSettle();
@@ -376,6 +385,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
     final originalSize = tester.getSize(find.byKey(const ValueKey('pass-qr')));
+    // Paused, so the frame on show does not depend on how long it takes the
+    // enlarged view to open.
+    await tester.tap(find.byTooltip('Pause QR animation'));
+    await tester.pump();
     await tester.tap(find.byTooltip('Enlarge code'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 350));
@@ -388,7 +401,16 @@ void main() {
     expect(enlarged(1), findsOneWidget);
     expect(tester.getSize(enlarged(1)).width, greaterThan(originalSize.width));
     final first = shownModules(tester);
-    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.byTooltip('Close enlarged code'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.tap(find.byTooltip('Play QR animation'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('Enlarge code'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 499));
+    expect(enlarged(1), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 1));
     expect(enlarged(2), findsOneWidget);
     expect(find.text('Frame 2 of $frameCount'), findsWidgets);
     expect(shownModules(tester), first);
