@@ -86,8 +86,8 @@ Completed on October 2, 2026, with version 1.0.0:
 
 - [x] Built the release APK with the application ID `nu.goodjob.pocklino`, signed with the upload key. Checked the signature, and that the merged manifest asks for the camera only, with no `INTERNET` or `ACCESS_NETWORK_STATE`.
 - [x] Installed that build on an Android 15 emulator and walked through the empty pocket, the examples, the create sheet, a note, a letter, collections and the evening appearance by their accessibility labels. The device log showed no Flutter errors. This does not verify camera capture.
-- [x] Built the Windows release with [windows/build_release.ps1](../windows/build_release.ps1). The bundle holds the executable, the DLLs and the data folder.
-- [x] Started the Windows executable in a brief smoke check: it stayed running for six seconds, drew its window and wrote nothing to stdout or stderr. File and share dialogs were not exercised.
+- [x] Ran the release workflow by hand on GitHub Actions: it built the signed APK, with the same certificate and permissions as the local build, and the Windows ZIP with the executable, the DLLs and the data folder.
+- [x] Started the Windows executable from that ZIP in a brief smoke check: it stayed running for six seconds, drew its window and wrote nothing to stdout or stderr. File and share dialogs were not exercised.
 
 ## Physical Android and iOS checks still required
 

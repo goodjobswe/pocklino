@@ -88,7 +88,7 @@ Version 1.0.0 is the first release. It passes static analysis and its automated 
 | Platform | Status |
 | --- | --- |
 | Android | The signed release build was walked through on an Android 15 emulator: empty pocket, examples, creating and editing, collections and both looks. Scanning a code with a real camera between two phones has not been tested yet. |
-| Windows | The release build starts and draws its window. File dialogs and a clean machine have not been tested. |
+| Windows | The release build made by GitHub Actions starts and draws its window. File dialogs and a machine without developer tools have not been tested. |
 | Web | The release build was checked in Chrome: saving survives a reload, the app decodes its own rendered QR code, and a second browser receives a page. No outside network requests. |
 | iOS | Native project included; build and testing still needed on a Mac with Xcode. |
 
