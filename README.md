@@ -8,7 +8,7 @@ Pocklino is a small notebook for thoughts, groceries, movies, trips and little s
 
 Everything stays on your device. There is no account and no Pocklino server, and the app adds no analytics or advertising. To give someone a page you pass them a copy, by QR code or as a file.
 
-Pocklino is a hobby project by Glenn Höglund at [goodjob.nu](https://goodjob.nu), built with Flutter for Android, Windows and the web.
+Pocklino is designed and built by Glenn Höglund at [goodjob](https://goodjob.nu), with Flutter for Android, Windows and the web.
 
 ## Screenshots
 
