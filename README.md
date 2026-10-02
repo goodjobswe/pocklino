@@ -1,94 +1,136 @@
+<img src="assets/brand/mark.svg" alt="" width="88">
+
 # Pocklino
 
 **A little space for your life.**
 
-A Flutter notebook for thoughts, groceries, films, adventures and little surprises. Everything starts on your device. There are no accounts or Pocklino servers. Pocklino itself adds no analytics or advertising.
+Pocklino is a small notebook for thoughts, groceries, films, trips and little surprises. Every kind of page is its own paper: a note is a slip, a list is a receipt, a film is a cinema ticket, a trip is a luggage tag and a letter is an envelope. They all live in one stitched pocket.
 
-This repository contains the first working app and its original brand assets. It is not a signed store release.
+Everything stays on your device. There is no account and no Pocklino server, and the app adds no analytics or advertising. To give someone a page you pass them a copy, by QR code or as a file.
 
-## Inside your pocket
+Pocklino is a hobby project by Glenn Höglund at [goodjob.nu](https://goodjob.nu), built with Flutter for Android, Windows and the web.
 
-- Every kind of page is its own paper: a note slip, a receipt for a list, a cinema ticket, a luggage tag, an envelope. They lie in a stitched ink-blue pocket, by day or in the evening.
-- Notes with personality: emoji, paper colors, collections, pinning, search and archive.
-- Checklists with quick ticking, completed items grouped below, and reset/duplicate controls for reuse.
-- Movie cards with a link and watched status; trip pages with dates, plans and packing lists.
-- Letters with sender/recipient names and an optional **Open later** date and time.
-- **Pass** a copy using one QR, an animated QR sequence, a copied code or a `.pocklino` file. Preview received content before keeping it.
-- Local autosave, light/dark appearance, optional example pages, and portable JSON backup/restore.
+## Screenshots
 
-Passing creates independent copies. Changes do not sync between people. Open later is a friendly reveal convention based on the receiving device's clock; transferred content is readable and is not securely time-locked or encrypted. Titles and opening dates remain visible.
+<table>
+  <tr>
+    <td align="center" width="25%"><img src="docs/screenshots/pocket.jpg" alt="The pocket with a pinned note, a checklist receipt, a cinema ticket, a luggage tag and an envelope, above a navy pocket bar with a coral create button" width="220"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/create.jpg" alt="The create sheet with the five kinds of paper and a tile for receiving a page" width="220"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/letter.jpg" alt="A letter open as an envelope with a coral seal, with stickers and the Open later switch below" width="220"></td>
+    <td align="center" width="25%"><img src="docs/screenshots/evening.jpg" alt="The pocket in the evening look, with dimmed papers on a dark desk" width="220"></td>
+  </tr>
+  <tr>
+    <td align="center">The pocket</td>
+    <td align="center">Something new</td>
+    <td align="center">A letter</td>
+    <td align="center">Evening</td>
+  </tr>
+</table>
 
-Movie information is entered by the user; IMDb links open externally. Automatic movie metadata, notifications and scheduled reminders are not implemented.
+<img src="docs/screenshots/wide.jpg" alt="A wide window: the pocket is a navy side panel and the papers lie in four columns" width="900">
 
-## Preview builds
+The phone pictures are from version 1.0.0 on an Android 15 emulator, the wide one from the web build in Chrome. [View all screenshots](docs/screenshots).
 
-- [Android preview APK](artifacts/pocklino-android-preview.apk): optimized build signed with the development key. Its merged manifest excludes `INTERNET` and `ACCESS_NETWORK_STATE`.
-- [Windows preview ZIP](artifacts/Pocklino-Windows.zip): extract the complete archive and run `pocklino.exe`; keep the adjacent DLLs and data directory. The executable passed a brief startup smoke check and drew its window; native dialogs were not exercised.
+## Features
 
-These are local preview artifacts, not signed store releases. Physical camera handoff, native share sheets, and iOS builds still need verification.
+- **Five kinds of page:** notes, checklists, movies, trips and letters, each with its own paper, color and sticker.
+- **Checklists that last:** tick items from the card, see finished ones grouped below, and reset or duplicate a list to use it again.
+- **Movies and trips:** a movie keeps a link and a watched switch; a trip keeps dates, plans and a packing list.
+- **Letters for later:** write to someone, and choose **Open later** to keep the envelope sealed until a date and time.
+- **Pass a copy:** show one QR code, an animated series of codes for longer pages, a copied code or a `.pocklino` file. The receiver sees a preview before keeping it.
+- **Order when you want it:** collections, pinning, search, filters by kind and an archive.
+- **Day and evening:** a light and a dark look, or follow the device.
+- **Yours to keep:** autosave on the device and a readable backup file you can export and restore.
 
-## Run it
+Passing makes an independent copy; nothing syncs afterwards. Open later is a friendly surprise based on the receiving device's clock, not a lock: the content is not encrypted, and the title and opening time stay visible. Movie details are typed by you; a link opens in your browser. There are no reminders or notifications.
 
-The project was developed with Flutter 3.29.3 / Dart 3.7.2. Install Flutter and the toolchain for your chosen platform, then run from this directory:
+## Get the app
+
+**Android:** download the newest `pocklino-<version>.apk` from the [Releases page](https://github.com/goodjobswe/pocklino/releases) and open it on the phone. Android asks once to allow installs from that source. It needs Android 6.0 or newer. The app is not on Google Play.
+
+**Windows:** download `pocklino-<version>-windows.zip` from the same page, extract the whole archive and run `pocklino.exe`. Keep the files next to it. The app is not code signed, so Windows may show a warning the first time; choose **More info** and **Run anyway**. Windows has no camera scanning: receive a page by file or by pasting its code.
+
+**iOS:** no build is published. The native project is included but has not been built yet.
+
+**Web:** there is no hosted copy. Build it from source as described below.
+
+Each release also carries a `.sha256` checksum for every file.
+
+## Your data
+
+Notes are stored in a local database on the device: a file in the app's own storage on Android, the file `pocklino-v1.db` in your Documents folder on Windows, and IndexedDB in the browser. There is no account and so no recovery through one. Export a backup from Settings before you move to a new device or remove the app; uninstalling or clearing site data removes the notes.
+
+- A backup is a readable JSON file of up to 10 MB. Restoring checks the whole file first, skips exact duplicates and keeps conflicting versions as separate pages.
+- One passed page can hold up to 64 KiB. Long pages need many QR frames, so a file is easier.
+- The Android release has no internet permission at all. Links open in the browser.
+- Pocklino never uploads anything by itself. If you send a file through a messaging or cloud app, that service handles it.
+- The database and the exported files are not encrypted.
+
+## Run locally
+
+The tested baseline is **Flutter 3.29.3 / Dart 3.7.2**.
 
 ```sh
+git clone https://github.com/goodjobswe/pocklino.git
+cd pocklino
 flutter pub get
 flutter run -d chrome
 ```
 
-For Windows, install the Visual Studio desktop C++ workload and use:
+Use `flutter devices` to list other targets, such as an Android phone or emulator, and `flutter run -d windows` for the desktop app, which needs the Visual Studio desktop C++ workload. See the [development guide](docs/DEVELOPMENT.md) for release builds, signing and the Windows build script.
+
+A new pocket starts empty. Choose **Take a peek at an example pocket** to look around; the examples can be removed again in Settings.
+
+## Project status
+
+Version 1.0.0 is the first release. It passes static analysis and its automated tests, and these checks were made by hand on October 2, 2026:
+
+| Platform | Status |
+| --- | --- |
+| Android | The signed release build was walked through on an Android 15 emulator: empty pocket, examples, creating and editing, collections and both looks. Scanning a code with a real camera between two phones has not been tested yet. |
+| Windows | The release build starts and draws its window. File dialogs and a clean machine have not been tested. |
+| Web | The release build was checked in Chrome: saving survives a reload, the app decodes its own rendered QR code, and a second browser receives a page. No outside network requests. |
+| iOS | Native project included; build and testing still needed on a Mac with Xcode. |
+
+The [verification checklist](docs/QA.md) lists what the tests cover and what remains to check on real devices.
+
+## Development
+
+Run the checks with:
 
 ```sh
-flutter run -d windows
-```
-
-This Windows preview was built with the project-local [release build script](windows/build_release.ps1), which handles Flutter 3.29 tool selection with Visual Studio 2026 without modifying the Flutter SDK. Run `.\windows\build_release.ps1` from PowerShell for the same build path.
-
-Windows supports creating and displaying QR codes, receiving pasted codes and files, and saving portable files. Camera scanning is unavailable in the Windows app. Android/iOS provide the intended camera experience; native sharing and scanning still need physical-device verification.
-
-A new notebook starts empty. Choose **Take a peek at an example pocket** to explore the design; examples can be removed separately in Settings.
-
-## Build and check
-
-Verified on October 2, 2026: `flutter analyze` reports no issues and all **49 automated tests pass**. The release web preview also passed persistence after reload, decoding its actual rendered QR with the bundled decoder, preview/import into a separate browser context, phone layout, and dark-theme checks. The inspected browser run recorded no external requests and no JavaScript errors. See the [verification report](artifacts/browser-verification.json) and [remaining release checks](docs/QA.md). Physical-device camera handoff and iOS testing remain outstanding.
-
-```sh
+dart format --output=none --set-exit-if-changed lib test tool
 flutter analyze
 flutter test
-flutter build web --no-web-resources-cdn
-python -m http.server 5178 --bind 127.0.0.1 --directory build/web
 ```
 
-Open `http://127.0.0.1:5178`. Use a static HTTPS host for a deployed web build: camera access requires a secure context, with loopback addresses allowed for development. The host serves application files; notes stay in the browser's local database.
+The same checks, a web build and a debug APK build run in GitHub Actions for every push and pull request. The tests cover the data model, storage and backup, the transfer format, and the main flows of the interface.
 
-Fonts, the web QR decoder and renderer resources are bundled locally. Flutter's generated service worker supports caching after the initial load. Offline startup depends on activation and browser cache availability; verify a fresh offline reload and scanning for each release. A first-ever web visit requires the application files, and clearing site data removes saved notes and cached app files.
+The main parts of the code are:
 
-For an optimized Android APK signed with the development key:
+- `lib/design.dart` - the day and evening palettes, themes and type.
+- `lib/paper.dart` - the paper shapes and the small parts drawn on them.
+- `lib/pocket.dart` - the pocket bar, the side panel and the create button.
+- `lib/home.dart`, `lib/editor.dart`, `lib/sharing.dart`, `lib/settings.dart` - the screens.
+- `lib/models.dart`, `lib/store.dart`, `lib/storage/` - pages, the notebook and its local database.
+- `lib/transfer.dart` - the format for passing a page, with QR frames and checksums.
+- `android/`, `ios/`, `web/`, `windows/` - the platform projects.
 
-```sh
-flutter build apk --release
-```
+More detail:
 
-Android configuration: minimum SDK 23, compile/target SDK 36, NDK `27.0.12077973`, AGP 8.12.1, Kotlin 2.2.0, Gradle 8.13, Java 17 or a compatible newer JDK. Install the matching SDK components and accept their licenses. The package ID is `se.goodjob.pocklino`. Production signing is not configured; the release configuration uses a development/debug key and is only suitable for local installation. Use `flutter build apk --debug` for development tooling.
-
-The Android release manifest removes `INTERNET` and `ACCESS_NETWORK_STATE`, including permissions introduced by scanner dependencies. The release app process cannot make network requests; external links still open through the browser. Debug builds retain networking for Flutter tooling, and third-party scanner libraries may include diagnostics behavior. Pocklino does not implement an analytics pipeline.
-
-The iOS source scaffold, icon set and camera usage description are included. Building and device testing require macOS, Xcode, a signing team and device-specific review. An iOS build was not tested in this Windows environment.
-
-## Keep your data
-
-Native platforms use a local Sembast database; web uses IndexedDB for that browser profile and origin. Export a backup before moving devices or removing the app. There is no account-based recovery. Browser data eviction, clearing site data or uninstalling can remove local notes.
-
-Backups are readable JSON files with a 10 MB limit. Restore validates the complete file before saving, skips exact duplicates and preserves conflicting versions as separate copies. Passing one page supports up to 64 KiB of entry JSON; large pages may need many QR frames, so files are more convenient.
-
-Pocklino does not upload your notes itself. Choosing an external messaging/cloud app for a file, or opening a web link, uses that service. Android automatic application backup is disabled; iOS device/iCloud backup behavior is controlled by the operating system and the user's settings. Local storage and export files have no application-level encryption.
-
-## Brand and implementation
-
-The identity pairs an ink-blue pocket with a butter-colored note and coral dot, and the interface is that mark at full size: paper things with ink outlines and hard shadows, tucked into a stitched pocket bar with a coral button. Bricolage Grotesque titles, DM Sans text and DM Mono small print make it read like printed tickets and receipts.
-
-- [Brand guide](docs/BRAND.md), [vector logo](assets/brand/logo.svg), [logo preview](artifacts/logo-preview.png), [mark](assets/brand/mark.svg), [1024 px app icon](assets/brand/app-icon.png)
+- [Development guide](docs/DEVELOPMENT.md) - builds, signing, releasing and the screenshot tool.
 - [Architecture and transfer format](docs/ARCHITECTURE.md)
-- [Verification and release checklist](docs/QA.md)
+- [Brand guide](docs/BRAND.md) - the design language, colors and type.
+- [Verification checklist](docs/QA.md)
 
-Regenerate launcher artwork with `python tool/generate_icons.py` after installing Pillow and fonttools. Font and decoder licenses are included beside their assets. The name is a project identity; no trademark clearance is asserted.
+## Contributing
+
+Issues and pull requests are welcome. For a bug report, include the device and OS, the app version from Settings, the steps to reproduce, and what you expected. A screenshot helps for layout problems. For a pull request, run the checks above first.
+
+## Credits
+
+The fonts are Bricolage Grotesque, DM Sans, DM Mono, Lora, Roboto and Noto Emoji under the Open Font License; their notices are in [assets/fonts](assets/fonts). The web build reads QR codes with ZXing under the Apache License 2.0, included in [web/assets](web/assets). The app shows these and the licenses of its Flutter packages under Settings, Open-source licenses.
+
+## License
+
+The source code is released under the [MIT License](LICENSE), so anyone can learn from it or build on it. The license covers the code only: the name Pocklino, the logo, the mark and the app icon in [assets/brand](assets/brand) are not included and may not be used for another app or product without permission.

@@ -7,6 +7,9 @@ import 'sharing.dart';
 import 'store.dart';
 import 'ui_helpers.dart';
 
+/// The version shown to people. A test keeps it in step with pubspec.yaml.
+const appVersion = '1.0.0';
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.store});
   final AppStore store;
@@ -317,7 +320,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         () => showLicensePage(
                           context: context,
                           applicationName: 'Pocklino',
-                          applicationVersion: '1.0.0',
+                          applicationVersion: appVersion,
                           applicationIcon: const Padding(
                             padding: EdgeInsets.all(16),
                             child: PocketMark(size: 70),
@@ -329,7 +332,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 26),
                 const Center(
                   child: MonoLabel(
-                    'Made for the little things  ·  Version 1.0.0',
+                    'Made for the little things  ·  Version $appVersion',
                   ),
                 ),
               ],

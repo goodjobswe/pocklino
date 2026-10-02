@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "se.goodjob" "\0"
+            VALUE "CompanyName", "goodjob" "\0"
             VALUE "FileDescription", "Pocklino" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "pocklino" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 se.goodjob. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 goodjob.nu" "\0"
             VALUE "OriginalFilename", "pocklino.exe" "\0"
             VALUE "ProductName", "Pocklino" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

@@ -1,4 +1,4 @@
-package se.goodjob.pocklino
+package nu.goodjob.pocklino
 
 import io.flutter.embedding.android.FlutterActivity
 

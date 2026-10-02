@@ -1,10 +1,10 @@
 # Verification and release checklist
 
-This is a first working build, not a store-ready release. Automated tests and local browser inspection do not replace physical-device checks for camera scanning, file handling, lifecycle behavior or release signing.
+Version 1.0.0 is published as a signed APK and a Windows ZIP on GitHub, not through an app store. Automated tests and local browser inspection do not replace checks on real devices for camera scanning, file handling and lifecycle behavior; the lists below say what has been checked and what has not.
 
 ## Automated checks
 
-Latest completed run, October 2, 2026: **`flutter analyze` has no issues; all 49 Flutter tests pass.** This includes seventeen home/editor interaction tests and the compact single/multipart QR transfer tests.
+Latest completed run, October 2, 2026: **`flutter analyze` has no issues; all 50 Flutter tests pass.** This includes seventeen home/editor interaction tests, a check that the version in Settings matches `pubspec.yaml`, and the compact single/multipart QR transfer tests.
 
 Run from the repository root:
 
@@ -42,7 +42,7 @@ It writes about 80 PNG files to `build/screens` (or the folder named in `SCREENS
 
 ## Browser review
 
-The release web preview completed these checks on October 2, 2026. Evidence: [browser-verification.json](../artifacts/browser-verification.json), [desktop pocket](../artifacts/desktop-pocket.png), [phone pocket](../artifacts/phone-pocket.png), [dark appearance](../artifacts/desktop-dark.png), and [rendered QR](../artifacts/pass-qr.png).
+The release web build completed these checks in Chrome on October 2, 2026, driven by `tool/browser_smoke.cjs`:
 
 - [x] A saved note survives a browser reload.
 - [x] The bundled ZXing decoder reconstructs the code from an actual rendered QR screenshot.
@@ -82,12 +82,12 @@ Browser camera access requires HTTPS or localhost and permission. A desktop brow
 
 ## Native build verification
 
-Completed on October 2, 2026, with the paper pocket interface:
+Completed on October 2, 2026, with version 1.0.0:
 
-- [x] Built [the optimized Android preview APK](../artifacts/pocklino-android-preview.apk); verified its development signature and absence of `INTERNET` / `ACCESS_NETWORK_STATE` in the final manifest. Production signing remains unconfigured.
-- [x] Installed that release build on an Android 15 emulator and walked through the empty pocket, the examples, the create sheet, a note, a letter, collections and the evening appearance by their accessibility labels. The device log showed no Flutter errors. [Empty screen](../artifacts/android-empty.png), [populated pocket](../artifacts/android-pocket.png). This does not verify camera capture.
-- [x] Built [the complete Windows release archive](../artifacts/Pocklino-Windows.zip) using [windows/build_release.ps1](../windows/build_release.ps1). The 37-entry bundle includes the executable, DLLs, and data.
-- [x] Started the Windows executable in a brief process smoke check: it stayed running for six seconds, drew its window and produced no stdout/stderr output. File/share dialogs were not exercised.
+- [x] Built the release APK with the application ID `nu.goodjob.pocklino`, signed with the upload key. Checked the signature, and that the merged manifest asks for the camera only, with no `INTERNET` or `ACCESS_NETWORK_STATE`.
+- [x] Installed that build on an Android 15 emulator and walked through the empty pocket, the examples, the create sheet, a note, a letter, collections and the evening appearance by their accessibility labels. The device log showed no Flutter errors. This does not verify camera capture.
+- [x] Built the Windows release with [windows/build_release.ps1](../windows/build_release.ps1). The bundle holds the executable, the DLLs and the data folder.
+- [x] Started the Windows executable in a brief smoke check: it stayed running for six seconds, drew its window and wrote nothing to stdout or stderr. File and share dialogs were not exercised.
 
 ## Physical Android and iOS checks still required
 
@@ -109,9 +109,10 @@ Use two devices, preferably one Android phone and one iPhone. Include one older 
 
 ## Before distribution
 
-- [ ] Run `flutter build apk --release` with the checked-in SDK/Gradle/JDK configuration and test the actual development-signed artifact. Verify the merged release manifest excludes `INTERNET` and `ACCESS_NETWORK_STATE`, even when dependencies are upgraded. Debug builds intentionally differ.
+- [x] Release signing is configured: the upload key stays outside the repository and in the repository secrets, see the [development guide](DEVELOPMENT.md). Keep a backup of the key.
+- [x] Application and bundle IDs reviewed: `nu.goodjob.pocklino` on Android and iOS.
+- [ ] After every dependency upgrade, verify that the merged release manifest still excludes `INTERNET` and `ACCESS_NETWORK_STATE`. Debug builds intentionally differ.
 - [ ] Build iOS on macOS with Xcode, resolve signing and verify camera/file permissions on a real device. This has not been tested in the Windows workspace.
-- [ ] Configure production signing and review application/bundle IDs. Android's current release build uses a development/debug key and must not be published as-is.
 - [ ] Review store privacy declarations against actual dependencies, external-link behavior and operating-system backup behavior. Pocklino itself has no analytics pipeline; inspect transitive scanner SDK diagnostics and the difference between debug and release networking permissions.
 - [ ] Review native release manifests/entitlements and avoid unnecessary permissions.
 - [ ] Confirm bundled dependency/font licenses and brand asset sizes.
