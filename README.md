@@ -37,7 +37,7 @@ The phone pictures are from version 1.0.0 on an Android 15 emulator, the wide on
 - **Checklists that last:** tick items from the card, see finished ones grouped below, and reset or duplicate a list to use it again.
 - **Movies and trips:** a movie keeps a link and a watched switch; a trip keeps dates, plans and a packing list.
 - **Letters for later:** write to someone, and choose **Open later** to keep the envelope sealed until a date and time.
-- **Pass a copy:** show one QR code, an animated series of codes for longer pages, a copied code or a `.pocklino` file. The receiver sees a preview before keeping it.
+- **Pass a copy:** show one QR code, an animated series of smaller codes for longer pages, a copied code or a `.pocklino` file. Adjust the sharing speed beneath the animated code, or enlarge a static code. The receiver keeps scanned pieces across loops and sees a preview before keeping the page.
 - **Order when you want it:** collections, pinning, search, filters by kind and an archive.
 - **Day and evening:** a light and a dark look, or follow the device.
 - **Yours to keep:** autosave on the device and a readable backup file you can export and restore.

@@ -12,11 +12,13 @@ abstract final class TransferCodec {
   static const partPrefix = 'pocklino-part:1:';
   static const maxPayloadBytes = 64 * 1024;
   static const maxEncodedLength = 90000;
-  static const singleFrameMaxLength = 650;
-  static const frameChunkSize = 400;
+  static const singleFrameMaxLength = 400;
+  static const frameChunkSize = 240;
   // Continue receiving the larger frames emitted by the original v1 encoder.
   static const maxAcceptedFrameChunkSize = 700;
-  static const maxFrames = 224;
+  // Smaller frames still cover the full encoded-size bound. The independent
+  // byte/encoded-length limits apply even to larger legacy fragments.
+  static const maxFrames = 375;
 
   static String encode(PocketEntry entry) {
     if (entry.isLocked) {

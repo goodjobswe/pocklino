@@ -4,6 +4,7 @@
 //   flutter test tool/screens_test.dart
 //
 // Pictures go to build/screens, or to the folder named in SCREENS_DIR.
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -13,6 +14,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pocklino/main.dart';
 import 'package:pocklino/models.dart';
+import 'package:pocklino/sharing.dart';
 import 'package:pocklino/store.dart';
 import 'package:pocklino/transfer.dart';
 import 'package:sembast/sembast.dart'
@@ -125,6 +127,27 @@ Future<void> shot(WidgetTester tester, String name) async {
   });
 }
 
+// Save the actual displayed payload and bounds so the bundled decoder can
+// independently check the QR pixels in these screenshots.
+Future<void> qrShot(WidgetTester tester, String name, PocketEntry entry) async {
+  await shot(tester, name);
+  final qr = find.byKey(const ValueKey('pass-qr')).last;
+  final bounds = tester.getRect(qr);
+  final scale = tester.view.devicePixelRatio;
+  final view = tester.widget<Semantics>(qr);
+  final frame = RegExp(r'Frame (\d+) of').firstMatch(view.properties.label!);
+  final index = frame == null ? 0 : int.parse(frame.group(1)!) - 1;
+  File('${_folder.path}/$name.json').writeAsStringSync(
+    jsonEncode({
+      'data': TransferCodec.frames(entry)[index],
+      'x': bounds.left * scale,
+      'y': bounds.top * scale,
+      'width': bounds.width * scale,
+      'height': bounds.height * scale,
+    }),
+  );
+}
+
 Future<void> tapText(WidgetTester tester, String text) async {
   await tester.tap(find.text(text).first);
   await tester.pumpAndSettle();
@@ -191,6 +214,52 @@ void main() {
     await _loadFonts();
   });
   tearDownAll(enableSembastCooperator);
+
+  for (final size in [phone, const Size(320, 568), desktop]) {
+    for (final night in [false, true]) {
+      final look = night ? 'night' : 'day';
+      testWidgets('QR sharing ${size.width.toInt()}, $look', (tester) async {
+        await open(tester, size, night: night, examples: false);
+        final now = DateTime.utc(2026, 10, 2);
+        final entry = PocketEntry(
+          id: 'scan-check',
+          title: 'A little memory',
+          body: 'Keep this memory for another day. ' * 40,
+          kind: EntryKind.note,
+          createdAt: now,
+          updatedAt: now,
+        );
+        showPassSheet(tester.element(find.byType(Scaffold).first), entry);
+        await tester.pumpAndSettle();
+        expect(find.byType(Slider).hitTestable(), findsOneWidget);
+        await qrShot(tester, 'qr-${size.width.toInt()}-$look', entry);
+        await tapTip(tester, 'Pause QR animation');
+        await tapTip(tester, 'Next QR frame');
+        await qrShot(tester, 'qr-${size.width.toInt()}-$look-next', entry);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  testWidgets('QR static enlargement', (tester) async {
+    await open(tester, desktop, examples: false);
+    final now = DateTime.utc(2026, 10, 2);
+    final entry = PocketEntry(
+      id: 'short',
+      title: 'Milk',
+      body: 'Remember milk.',
+      kind: EntryKind.note,
+      createdAt: now,
+      updatedAt: now,
+    );
+    showPassSheet(tester.element(find.byType(Scaffold).first), entry);
+    await tester.pumpAndSettle();
+    expect(find.byType(Slider), findsNothing);
+    await qrShot(tester, 'qr-static', entry);
+    await tapText(tester, 'Enlarge code');
+    await qrShot(tester, 'qr-enlarged', entry);
+    expect(tester.takeException(), isNull);
+  });
 
   for (final night in [false, true]) {
     final look = night ? 'night' : 'day';

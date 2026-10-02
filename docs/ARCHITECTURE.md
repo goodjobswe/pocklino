@@ -41,15 +41,17 @@ A transfer contains the actual page, not a URL to server-held content. It is unc
 3. Build a JSON envelope with `e` (entry) and `h` (hex digest).
 4. Encode that envelope with unpadded base64url and prefix `pocklino:1:`.
 
-This full token is used for copied codes and `.pocklino` files. Its entry JSON limit is 64 KiB; the encoded token also has a 90,000-character limit. Optional default, empty and null fields are omitted and reconstructed by the decoder, reducing the size of short notes without changing the v1 format. A token up to 650 characters is displayed in one QR.
+This full token is used for copied codes and `.pocklino` files. Its entry JSON limit is 64 KiB; the encoded token also has a 90,000-character limit. Optional default, empty and null fields are omitted and reconstructed by the decoder, reducing the size of short notes without changing the v1 format. A token up to 400 characters is displayed in one QR. Larger single tokens from earlier releases are still accepted by the decoder.
 
-Longer tokens are split into 400-character payload fragments:
+Longer tokens are split into 240-character payload fragments:
 
 ```text
 pocklino-part:1:<transfer-id>:<one-based-index>:<frame-count>:<fragment>
 ```
 
-The transfer ID is the first 16 hex characters of the full token's SHA-256 digest. At most 224 frames are accepted, with the same total encoded-size bound. The receiver also accepts the original v1 encoder's fragments up to 700 characters for compatibility. Playback loops every 650 ms and supports pause/manual advance. The assembler accepts frames in any order and ignores duplicates, rejects conflicting pieces or mixed transfers, then verifies the reconstructed token and envelope before showing a preview. The user can reset a partial transfer.
+The transfer ID is the first 16 hex characters of the full token's SHA-256 digest. At most 375 frames are accepted, with the same total encoded-size bound, preserving the full 64 KiB entry limit despite smaller fragments. The receiver also accepts earlier v1 encoders' fragments up to 700 characters for compatibility. Transfers with more than 224 frames require an updated receiver; earlier receivers can still receive the full token through a copied code or file.
+
+QR rendering uses error-correction level Q and a white quiet zone. Playback starts at one second per frame. A visible sharing-speed slider ranges from two seconds to 0.4 seconds per frame, and pause/manual advance remains available. Speed changes retain the same fragments so the receiver can keep its progress. An enlarged QR view helps when scanning at the normal size is difficult. The assembler accepts frames in any order and ignores duplicates, rejects conflicting pieces or mixed transfers, then verifies the reconstructed token and envelope before showing a preview. The receiver displays the number of collected pieces and remembers them across loops; the user can reset a partial transfer.
 
 Receiving never silently saves content. A preview offers **Keep in my pocket**, which imports a new independent copy. There is no collaborative merge or background synchronization. Later changes stay on the device that made them.
 

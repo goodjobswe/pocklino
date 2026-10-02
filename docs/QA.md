@@ -4,7 +4,7 @@ Version 1.0.0 is published as a signed APK and a Windows ZIP on GitHub, not thro
 
 ## Automated checks
 
-Latest completed run, October 2, 2026: **`flutter analyze` has no issues; all 50 Flutter tests pass.** This includes seventeen home/editor interaction tests, a check that the version in Settings matches `pubspec.yaml`, and the compact single/multipart QR transfer tests.
+Latest completed run, October 2, 2026, for version 1.0.1: **`flutter analyze` has no issues; all 58 Flutter tests pass.** This includes seventeen home/editor interaction tests, a check that the version in Settings matches `pubspec.yaml`, compact single/multipart QR transfers, sharing-speed controls, and camera close/reopen sequencing.
 
 Run from the repository root:
 
@@ -26,7 +26,7 @@ The suite covers:
 - The empty pocket's own button for a first page, the side panel on a wide window, and a failed save that leaves the cursor in its field.
 - Button roles for the papers on the create sheet, as a screen reader hears them.
 - Concealment of future letters in cards/search/editor and receive previews, and of a sealed page of any other kind on its card and in the editor.
-- Receive validation/import and animated QR pause, manual advance and dismissal.
+- Receive validation/import, animated QR speed changes without resetting frames, pause/manual advance, static enlargement and camera lifecycle.
 
 Tests use local/in-memory databases and do not establish real camera or native share-sheet compatibility. Run the complete suite again after changes to editor saving, data schemas or transfer rules.
 
@@ -39,6 +39,15 @@ flutter test tool/screens_test.dart
 ```
 
 It writes about 80 PNG files to `build/screens` (or the folder named in `SCREENS_DIR`): every place, the create sheet, each editor, the pass and receive sheets, dialogs, pickers and settings, by day and in the evening, on a phone and a wide window, plus a short medium window, a 320 px phone and a small phone with large text. A layout overflow fails the run. Look through the pictures after any change to `lib/design.dart`, `lib/paper.dart` or `lib/pocket.dart`.
+
+For QR sharing changes, render the targeted day/evening, narrow-phone and desktop cases, then decode their actual pixels with the bundled ZXing reader:
+
+```sh
+flutter test tool/screens_test.dart --plain-name QR
+node tool/qr_image_check.cjs
+```
+
+The decoder check uses the local Playwright installation described below. It compares 14 displayed QR images with their exact expected payloads, including the enlarged static code. Crops are normalized to at most 320 pixels before decoding: the bundled ZXing reader can choose false finder patterns at some larger cell sizes even with an exact QR matrix. Results go to `artifacts/qr-image-verification.json`. These checks establish rendered-code readability at the checked sizes, not physical-camera reliability.
 
 ## Browser review
 
@@ -96,6 +105,8 @@ Use two devices, preferably one Android phone and one iPhone. Include one older 
 - [ ] Launch, create and reopen notes in airplane mode.
 - [ ] Pass a short page with one QR in both directions and verify exact Unicode, checkboxes, links and dates.
 - [ ] Pass a long page with animated frames; miss frames, pause, resume and verify full reconstruction without duplication.
+- [ ] Adjust Sharing speed while the receiver is collecting pieces. Try 2.0, 1.0 and 0.4 seconds per frame on different phones, confirm existing progress stays, and verify slower playback helps when frames are missed.
+- [ ] Confirm the QR and slider are visible together on a short phone, and enlarge a static code without losing the sharing sheet.
 - [ ] Scan a different sender mid-transfer, reset, and receive correctly. Repeated scans must not import automatically.
 - [ ] Preview, cancel and keep each content type; imports must create separate IDs and leave originals untouched.
 - [ ] Deny camera permission, grant it later and reopen; backgrounds/foregrounds and closing the sheet release/recover the camera.

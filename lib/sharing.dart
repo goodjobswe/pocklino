@@ -97,6 +97,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   String? _error;
   Timer? _timer;
   int _frame = 0;
+  int _frameDurationMs = 1000;
   bool _playing = true;
   bool _saving = false;
 
@@ -119,10 +120,50 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   void _startAnimation() {
     _timer?.cancel();
     if (!_playing || _frames.length < 2) return;
-    _timer = Timer.periodic(const Duration(milliseconds: 650), (_) {
+    _timer = Timer.periodic(Duration(milliseconds: _frameDurationMs), (_) {
       if (mounted) setState(() => _frame = (_frame + 1) % _frames.length);
     });
   }
+
+  void _setSpeed(double value) {
+    setState(() => _frameDurationMs = 2400 - value.round());
+    _startAnimation();
+  }
+
+  Future<void> _enlargeCode() => showDialog<void>(
+    context: context,
+    builder:
+        (context) => Dialog.fullscreen(
+          backgroundColor: Colors.white,
+          child: SafeArea(
+            child: Column(
+              children: [
+                Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    tooltip: 'Close enlarged code',
+                    color: Colors.black,
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder:
+                        (context, constraints) => Center(
+                          child: _PassQr(
+                            data: _frames.single,
+                            size: constraints.biggest.shortestSide,
+                            label: 'Enlarged Pocklino pass code.',
+                          ),
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+  );
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -181,14 +222,28 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
     final palette = PocketPalette.of(context);
     final stock = palette.stock(widget.entry.colorIndex);
     final opensLater = widget.entry.unlockAt?.isAfter(DateTime.now()) ?? false;
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final compact = screenHeight < 720;
+    // Tighten the surrounding paper on short phones so the code stays large
+    // while its speed control remains within reach without scrolling.
+    final qrSize = (screenHeight * 0.92 - (compact ? 280 : 380)).clamp(
+      220.0,
+      300.0,
+    );
     return _SheetFrame(
       title: 'Pass a little something',
       subtitle: 'From your pocket to theirs.',
+      compact: compact,
       children: [
         Paper(
           shape: PaperShape.sheet,
           stock: stock,
-          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          padding: EdgeInsets.fromLTRB(
+            14,
+            compact ? 8 : 12,
+            12,
+            compact ? 8 : 12,
+          ),
           child: Row(
             children: [
               PaperGlyph(widget.entry.kind.shape, size: 22, color: stock.ink),
@@ -198,9 +253,13 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                   widget.entry.title.isEmpty
                       ? 'A little something'
                       : widget.entry.title,
-                  maxLines: 2,
+                  maxLines: compact ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
-                  style: PocketType.display(17, color: stock.ink, height: 1.2),
+                  style: PocketType.display(
+                    compact ? 15 : 17,
+                    color: stock.ink,
+                    height: 1.2,
+                  ),
                 ),
               ),
               const SizedBox(width: 8),
@@ -208,7 +267,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        SizedBox(height: compact ? 12 : 16),
         if (_frames.isNotEmpty) ...[
           Center(
             child: Container(
@@ -231,33 +290,68 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
               ),
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final size = (constraints.maxWidth - 8).clamp(120.0, 300.0);
-                  return Semantics(
+                  return _PassQr(
+                    data: _frames[_frame],
+                    size: constraints.maxWidth.clamp(0.0, qrSize),
                     label:
                         'Pocklino pass code. Frame ${_frame + 1} of ${_frames.length}.',
-                    image: true,
-                    child: QrImageView(
-                      data: _frames[_frame],
-                      size: size,
-                      padding: const EdgeInsets.all(16),
-                      backgroundColor: Colors.white,
-                      errorCorrectionLevel: QrErrorCorrectLevel.M,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.square,
-                        color: PocklinoColors.deepInk,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.square,
-                        color: PocklinoColors.deepInk,
-                      ),
-                    ),
                   );
                 },
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           if (_frames.length > 1) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Sharing speed',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PocketType.body(
+                      14,
+                      color: palette.ink,
+                      weight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${(_frameDurationMs / 1000).toStringAsFixed(1)} s / frame',
+                  style: PocketType.body(12, color: palette.muted),
+                ),
+              ],
+            ),
+            Semantics(
+              label: 'Sharing speed',
+              child: Slider(
+                value: (2400 - _frameDurationMs).toDouble(),
+                min: 400,
+                max: 2000,
+                divisions: 8,
+                label:
+                    '${(_frameDurationMs / 1000).toStringAsFixed(1)} seconds per frame',
+                semanticFormatterCallback:
+                    (value) =>
+                        '${((2400 - value) / 1000).toStringAsFixed(1)} seconds per frame',
+                onChanged: _setSpeed,
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Slower',
+                  style: PocketType.body(12, color: palette.muted),
+                ),
+                Text(
+                  'Faster',
+                  style: PocketType.body(12, color: palette.muted),
+                ),
+              ],
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -298,16 +392,28 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
               ],
             ),
             Text(
-              'Keep the other camera pointed at the code until all pieces arrive.',
+              'Having trouble scanning? Try slowing down.',
               textAlign: TextAlign.center,
               style: PocketType.body(14, color: palette.muted),
             ),
-          ] else
+            const SizedBox(height: 6),
+            Text(
+              'Keep the other camera pointed at the code until all pieces arrive.',
+              textAlign: TextAlign.center,
+              style: PocketType.body(12, color: palette.muted),
+            ),
+          ] else ...[
+            TextButton.icon(
+              onPressed: _enlargeCode,
+              icon: const Icon(Icons.fullscreen_rounded),
+              label: const Text('Enlarge code'),
+            ),
             Text(
               'Open Pocklino on the other device,\ntap Receive, then scan this code.',
               textAlign: TextAlign.center,
               style: PocketType.body(14, color: palette.muted, height: 1.5),
             ),
+          ],
           const SizedBox(height: 22),
           Row(
             children: [
@@ -363,6 +469,188 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
       ],
     );
   }
+}
+
+/// Keep a four-module white quiet zone, independent of QR version or size.
+class _PassQr extends StatelessWidget {
+  const _PassQr({required this.data, required this.size, required this.label});
+
+  final String data;
+  final double size;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final qr = QrCode.fromData(
+      data: data,
+      errorCorrectLevel: QrErrorCorrectLevel.Q,
+    );
+    return Semantics(
+      key: const ValueKey('pass-qr'),
+      label: label,
+      image: true,
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _QrMatrixPainter(
+          qr: QrImage(qr),
+          pixelRatio: MediaQuery.devicePixelRatioOf(context),
+        ),
+      ),
+    );
+  }
+}
+
+/// Paint the actual matrix on whole device pixels, including finder patterns.
+/// This avoids independently rounded finder strokes and overlapping modules.
+class _QrMatrixPainter extends CustomPainter {
+  const _QrMatrixPainter({required this.qr, required this.pixelRatio});
+
+  final QrImage qr;
+  final double pixelRatio;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..isAntiAlias = false;
+    canvas.drawRect(Offset.zero & size, paint..color = Colors.white);
+    final pixels = (size.shortestSide * pixelRatio).floor();
+    final modulePixels = pixels ~/ (qr.moduleCount + 8);
+    if (modulePixels < 1) return;
+    final codePixels = qr.moduleCount * modulePixels;
+    final insetPixels = ((pixels - codePixels) / 2).floor();
+    paint.color = Colors.black;
+    for (var row = 0; row < qr.moduleCount; row++) {
+      for (var column = 0; column < qr.moduleCount; column++) {
+        if (!qr.isDark(row, column)) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(
+            (insetPixels + column * modulePixels) / pixelRatio,
+            (insetPixels + row * modulePixels) / pixelRatio,
+            modulePixels / pixelRatio,
+            modulePixels / pixelRatio,
+          ),
+          paint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_QrMatrixPainter oldDelegate) =>
+      qr != oldDelegate.qr || pixelRatio != oldDelegate.pixelRatio;
+}
+
+/// Own the camera only while its preview is visible. Camera operations are
+/// serialized so closing or backgrounding during startup still releases it.
+class _QrCamera extends StatefulWidget {
+  const _QrCamera({
+    required this.onDetect,
+    required this.errorBuilder,
+    required this.placeholderBuilder,
+  });
+
+  final void Function(BarcodeCapture) onDetect;
+  final Widget Function(BuildContext, MobileScannerException) errorBuilder;
+  final WidgetBuilder placeholderBuilder;
+
+  @override
+  State<_QrCamera> createState() => _QrCameraState();
+}
+
+class _QrCameraState extends State<_QrCamera> with WidgetsBindingObserver {
+  // The native scanner is shared. A newly opened preview must wait until an
+  // earlier preview has finished starting and released the camera.
+  static Future<void>? _cameraOperation;
+
+  static void _enqueue(Future<void> Function() operation) {
+    final previous = _cameraOperation ?? Future<void>.value();
+    final next = previous.then((_) => operation());
+    _cameraOperation = next;
+    unawaited(
+      next.then((_) {
+        if (identical(_cameraOperation, next)) _cameraOperation = null;
+      }),
+    );
+  }
+
+  final _controller = MobileScannerController(
+    autoStart: false,
+    formats: const [BarcodeFormat.qrCode],
+  );
+  bool _active = true;
+  bool _disposed = false;
+  MobileScannerException? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _active = lifecycle == null || lifecycle == AppLifecycleState.resumed;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncCamera();
+    });
+  }
+
+  void _syncCamera() {
+    _enqueue(() async {
+      if (_disposed) return;
+      try {
+        if (_active) {
+          if (_error != null && mounted) setState(() => _error = null);
+          await _controller.start();
+        } else {
+          await _controller.stop();
+        }
+      } on MobileScannerException catch (error) {
+        if (mounted) setState(() => _error = error);
+      } catch (_) {
+        if (mounted) {
+          setState(
+            () =>
+                _error = const MobileScannerException(
+                  errorCode: MobileScannerErrorCode.genericError,
+                ),
+          );
+        }
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _active = state == AppLifecycleState.resumed;
+    // The permission prompt can itself send the app inactive. Queue the latest
+    // state behind startup, rather than starting a second camera session.
+    _syncCamera();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _disposed = true;
+    _enqueue(() async {
+      try {
+        await _controller.dispose();
+      } catch (error) {
+        // A native teardown failure must not block a future camera attempt or
+        // escape from this already-disposed widget as an unhandled future.
+        debugPrint('Could not release the QR camera: $error');
+      }
+    });
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _error != null
+          ? widget.errorBuilder(context, _error!)
+          : MobileScanner(
+            controller: _controller,
+            useAppLifecycleState: false,
+            onDetect: widget.onDetect,
+            errorBuilder: widget.errorBuilder,
+            placeholderBuilder: widget.placeholderBuilder,
+          );
 }
 
 class _ReceiveSheet extends StatefulWidget {
@@ -554,7 +842,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    MobileScanner(
+                    _QrCamera(
                       onDetect: _onDetect,
                       errorBuilder:
                           (context, error) => Container(
@@ -688,7 +976,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
               children: [
                 Flexible(
                   child: Text(
-                    '${(_assembler.progress * 100).round()}% of your pocket received',
+                    '${_assembler.receivedFrames} of ${_assembler.totalFrames} pieces received',
                     style: PocketType.body(12, color: palette.muted),
                   ),
                 ),
@@ -956,10 +1244,12 @@ class _SheetFrame extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.children,
+    this.compact = false,
   });
   final String title;
   final String subtitle;
   final List<Widget> children;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -985,7 +1275,7 @@ class _SheetFrame extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const SheetHandle(),
-                const SizedBox(height: 14),
+                SizedBox(height: compact ? 6 : 14),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -995,13 +1285,18 @@ class _SheetFrame extends StatelessWidget {
                         children: [
                           Text(
                             title,
-                            style: Theme.of(context).textTheme.headlineSmall,
+                            style:
+                                compact
+                                    ? PocketType.display(19, color: palette.ink)
+                                    : Theme.of(context).textTheme.headlineSmall,
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            subtitle,
-                            style: PocketType.body(14, color: palette.muted),
-                          ),
+                          if (!compact) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              subtitle,
+                              style: PocketType.body(14, color: palette.muted),
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -1014,7 +1309,7 @@ class _SheetFrame extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: compact ? 10 : 20),
                 ...children,
               ],
             ),

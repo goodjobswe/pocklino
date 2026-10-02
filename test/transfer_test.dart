@@ -51,7 +51,7 @@ void main() {
       'createdAt',
       'updatedAt',
     });
-    expect(token.length, lessThan(500));
+    expect(token.length, lessThanOrEqualTo(400));
     expect(TransferCodec.frames(original), [token]);
     expect(
       TransferCodec.decode(token).toJson(),
@@ -66,6 +66,46 @@ void main() {
     // ignore: avoid_print
     print('Compact realistic short note: ${token.length} characters');
   });
+
+  test(
+    'static QR threshold preserves earlier larger single-code transfers',
+    () {
+      final seed = PocketEntry(
+        id: 'a',
+        title: '',
+        kind: EntryKind.note,
+        createdAt: DateTime.utc(2026, 1, 1),
+        updatedAt: DateTime.utc(2026, 1, 1),
+      );
+      PocketEntry fitting(int length) {
+        var entry = seed;
+        while (TransferCodec.encode(
+              entry.copyWith(body: '${entry.body}x'),
+            ).length <=
+            length) {
+          entry = entry.copyWith(body: '${entry.body}x');
+        }
+        return entry;
+      }
+
+      final staticEntry = fitting(400);
+      final staticToken = TransferCodec.encode(staticEntry);
+      expect(staticToken.length, inInclusiveRange(399, 400));
+      expect(TransferCodec.frames(staticEntry), [staticToken]);
+      final nextEntry = staticEntry.copyWith(body: '${staticEntry.body}x');
+      expect(TransferCodec.encode(nextEntry).length, greaterThan(400));
+      expect(TransferCodec.frames(nextEntry).length, greaterThan(1));
+
+      final legacyEntry = fitting(650);
+      final legacyToken = TransferCodec.encode(legacyEntry);
+      expect(legacyToken.length, greaterThan(400));
+      expect(legacyToken.length, lessThanOrEqualTo(650));
+      expect(
+        TransferAssembler().add(legacyToken)?.toJson(),
+        legacyEntry.copyWith(received: true).toJson(),
+      );
+    },
+  );
 
   test(
     'compact payload retains non-default fields and unchecked list items',
@@ -116,23 +156,52 @@ void main() {
   });
 
   test(
-    'large compact transfers keep new frames small and reconstruct Unicode',
+    'full 64 KiB Unicode transfer recovers a missing piece on a later loop',
     () {
-      final original = page(body: '\u{1f9f3}' * 15000);
+      final seed = page(body: 'x');
+      final seedToken = TransferCodec.encode(seed);
+      final envelope =
+          jsonDecode(
+                utf8.decode(
+                  base64Url.decode(
+                    base64Url.normalize(
+                      seedToken.substring(TransferCodec.prefix.length),
+                    ),
+                  ),
+                ),
+              )
+              as Map<String, dynamic>;
+      final seedBytes = utf8.encode(jsonEncode(envelope['e'])).length;
+      // The body already has one byte. Fill the remaining entry budget exactly.
+      final bodyBytes = TransferCodec.maxPayloadBytes - seedBytes + 1;
+      final body = '\u{1f9f3}' * (bodyBytes ~/ 4) + 'x' * (bodyBytes % 4);
+      final original = seed.copyWith(body: body);
+      expect(seedBytes - 1 + utf8.encode(body).length, 64 * 1024);
       final frames = TransferCodec.frames(original);
-      expect(frames.length, greaterThan(128));
+      expect(frames.length, greaterThan(224));
       expect(frames.length, lessThanOrEqualTo(TransferCodec.maxFrames));
       expect(
-        frames.every((frame) => frame.split(':').last.length <= 400),
+        frames.every((frame) => frame.split(':').last.length <= 240),
         isTrue,
       );
       final assembler = TransferAssembler();
-      PocketEntry? completed;
-      for (final frame in frames.reversed) {
-        completed = assembler.add(frame) ?? completed;
+      final missing = frames[frames.length ~/ 2];
+      for (final frame in frames.reversed.where((frame) => frame != missing)) {
+        expect(assembler.add(frame), isNull);
+        expect(assembler.add(frame), isNull);
       }
-      expect(completed?.body, original.body);
+      expect(assembler.receivedFrames, frames.length - 1);
+      expect(assembler.totalFrames, frames.length);
+      expect(assembler.progress, lessThan(1));
+      final completed = assembler.add(missing);
+      expect(completed?.toJson(), original.copyWith(received: true).toJson());
       expect(assembler.progress, 1);
+      expect(assembler.add(missing), isNull);
+      expect(
+        () =>
+            TransferCodec.encode(original.copyWith(body: '${original.body}x')),
+        throwsFormatException,
+      );
     },
   );
   test('QR roundtrip preserves unicode, dates, links and items', () {
@@ -263,6 +332,29 @@ void main() {
       expect(() => assembler.add(input), throwsFormatException);
       expect(assembler.progress, 0);
     }
+  });
+
+  test('more allowed frames do not increase the encoded transfer limit', () {
+    final assembler = TransferAssembler();
+    final fullChunk = 'a' * TransferCodec.maxAcceptedFrameChunkSize;
+    final fittingChunks =
+        (TransferCodec.maxEncodedLength - TransferCodec.prefix.length) ~/
+        fullChunk.length;
+    for (var index = 1; index <= fittingChunks; index++) {
+      expect(
+        assembler.add(
+          '${TransferCodec.partPrefix}0123456789abcdef:$index:${TransferCodec.maxFrames}:$fullChunk',
+        ),
+        isNull,
+      );
+    }
+    expect(
+      () => assembler.add(
+        '${TransferCodec.partPrefix}0123456789abcdef:${fittingChunks + 1}:${TransferCodec.maxFrames}:$fullChunk',
+      ),
+      throwsFormatException,
+    );
+    expect(assembler.receivedFrames, fittingChunks);
   });
 
   test('a corrupted assembled transfer cannot produce a note', () {

@@ -8,7 +8,7 @@ import 'store.dart';
 import 'ui_helpers.dart';
 
 /// The version shown to people. A test keeps it in step with pubspec.yaml.
-const appVersion = '1.0.0';
+const appVersion = '1.0.1';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key, required this.store});
