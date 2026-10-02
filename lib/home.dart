@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'design.dart';
 import 'editor.dart';
 import 'models.dart';
+import 'paper.dart';
+import 'pocket.dart';
 import 'settings.dart';
 import 'sharing.dart';
 import 'store.dart';
@@ -16,13 +18,19 @@ class PocketHome extends StatefulWidget {
 }
 
 class _PocketHomeState extends State<PocketHome> {
+  /// An index into [pocketPlaces].
   int page = 0;
   EntryKind? filter;
   String search = '';
   String? collection;
-  bool archived = false;
+  final searchText = TextEditingController();
   Timer? clock;
   AppStore get store => widget.store;
+  bool get archived => page == 3;
+
+  /// How far a card's menu reaches into the paper's right margin.
+  static const _menuReach = 12.0;
+  bool get collectionList => page == 1 && collection == null;
 
   @override
   void initState() {
@@ -35,6 +43,7 @@ class _PocketHomeState extends State<PocketHome> {
   @override
   void dispose() {
     clock?.cancel();
+    searchText.dispose();
     super.dispose();
   }
 
@@ -57,60 +66,16 @@ class _PocketHomeState extends State<PocketHome> {
   }
 
   Future<void> create() async {
-    final kind = await showModalBottomSheet<EntryKind>(
+    final choice = await showModalBottomSheet<Object>(
       context: context,
-      showDragHandle: true,
       isScrollControlled: true,
-      constraints: const BoxConstraints(maxWidth: 540),
-      builder:
-          (context) => SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Make room for something.',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 6),
-                  const Text('Big plans. Small thoughts. All welcome here.'),
-                  const SizedBox(height: 20),
-                  for (final kind in EntryKind.values)
-                    ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 4,
-                      ),
-                      leading: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color:
-                              PocklinoColors.cardColors[kind.index %
-                                  PocklinoColors.cardColors.length],
-                          borderRadius: BorderRadius.circular(13),
-                        ),
-                        child: Icon(kind.icon, color: PocklinoColors.ink),
-                      ),
-                      title: Text(
-                        kind.label,
-                        style: const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text(kind.hint),
-                      trailing: const Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 19,
-                      ),
-                      onTap: () => Navigator.pop(context, kind),
-                    ),
-                ],
-              ),
-            ),
-          ),
+      constraints: const BoxConstraints(maxWidth: 560),
+      builder: (context) => const _CreateSheet(),
     );
-    if (kind != null && mounted) {
+    if (!mounted) return;
+    if (choice == _CreateSheet.receive) {
+      await showReceiveSheet(context, store);
+    } else if (choice case final EntryKind kind) {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder:
@@ -122,38 +87,41 @@ class _PocketHomeState extends State<PocketHome> {
   }
 
   Future<void> addCollection() async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
+    final value = await promptText(
+      context,
+      title: 'New collection',
+      label: 'Collection name',
+      hint: 'Weekend adventures',
+      action: 'Create',
+      maxLength: 40,
+    );
+    if (value != null && value.trim().isNotEmpty) {
+      await act(() => store.addCollection(value.trim()));
+    }
+  }
+
+  Future<void> removeCollection(String name) async {
+    final yes = await showDialog<bool>(
       context: context,
       builder:
-          (context) => AlertDialog(
-            title: const Text('A new little collection'),
-            content: TextField(
-              controller: controller,
-              autofocus: true,
-              maxLength: 40,
-              decoration: const InputDecoration(
-                labelText: 'Collection name',
-                hintText: 'Weekend adventures',
-              ),
-              onSubmitted: (v) => Navigator.pop(context, v),
+          (ctx) => AlertDialog(
+            title: Text('Remove “$name”?'),
+            content: const Text(
+              'Your items will move to Everyday. Nothing will be deleted.',
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Keep it'),
               ),
               FilledButton(
-                onPressed: () => Navigator.pop(context, controller.text),
-                child: const Text('Create'),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Remove collection'),
               ),
             ],
           ),
     );
-    controller.dispose();
-    if (value != null && value.trim().isNotEmpty) {
-      await act(() => store.addCollection(value.trim()));
-    }
+    if (yes == true) await act(() => store.deleteCollection(name));
   }
 
   Future<void> remove(PocketEntry entry) async {
@@ -189,6 +157,11 @@ class _PocketHomeState extends State<PocketHome> {
     }
   }
 
+  void openSettings() => Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (_) => SettingsPage(store: store)),
+  );
+
   List<PocketEntry> get visibleEntries {
     final query = search.toLowerCase().trim();
     return store.entries.where((entry) {
@@ -211,249 +184,204 @@ class _PocketHomeState extends State<PocketHome> {
       });
   }
 
+  void clearSearch() {
+    searchText.clear();
+    setState(() => search = '');
+  }
+
+  void selectPage(int value) {
+    searchText.clear();
+    setState(() {
+      page = value;
+      collection = null;
+      filter = null;
+      search = '';
+    });
+  }
+
+  void openCollection(String name) {
+    searchText.clear();
+    setState(() {
+      page = 1;
+      collection = name;
+      filter = null;
+      search = '';
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: store,
       builder: (context, _) {
-        final wide = MediaQuery.sizeOf(context).width >= 900;
+        final width = MediaQuery.sizeOf(context).width;
+        final wide = width >= 900;
+        // Only a roomy window has space for the search beside the title.
+        final inlineSearch = width >= 1120;
+        final gutter = wide ? 36.0 : 16.0;
         final entries = visibleEntries;
+        final inset = MediaQuery.viewPaddingOf(context).bottom;
+        Widget list = SingleChildScrollView(
+          key: const ValueKey('board'),
+          padding: EdgeInsets.fromLTRB(
+            gutter,
+            wide ? 28 : 8,
+            gutter,
+            wide ? 36 + inset : PocketBar.rise + PocketBar.dip + 20,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              header(wide, inlineSearch, entries.length),
+              if (collectionList) ...[
+                const SizedBox(height: 22),
+                collectionBoard(),
+              ] else ...[
+                if (!inlineSearch) ...[
+                  const SizedBox(height: 14),
+                  searchField(),
+                ],
+                if (page != 2) ...[const SizedBox(height: 12), filters(wide)],
+                SizedBox(height: wide ? 26 : 22),
+                if (entries.isEmpty) emptyState() else board(entries),
+                if (page == 0 && store.entries.any((entry) => entry.isExample))
+                  examplesNote(),
+              ],
+              const SizedBox(height: 26),
+              const Center(child: MonoLabel('On your device. Yours to keep.')),
+            ],
+          ),
+        );
+        if (!wide) {
+          // The list runs under the pocket bar and ends where the pocket's
+          // edge dips lowest: pages slide in behind the edge, and whatever
+          // still shows above it can be tapped.
+          list = Padding(
+            padding: EdgeInsets.only(
+              bottom: PocketBar.depth - PocketBar.dip + inset,
+            ),
+            child: list,
+          );
+        }
         return Scaffold(
+          extendBody: true,
           body: SafeArea(
+            bottom: false,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (wide) sidebar(),
+                if (wide)
+                  PocketSidebar(
+                    index: page,
+                    onSelect: selectPage,
+                    onCreate: create,
+                    collections: store.collections,
+                    collection: collection,
+                    onCollection: openCollection,
+                    onReceive: () => showReceiveSheet(context, store),
+                    onSettings: openSettings,
+                  ),
                 Expanded(
-                  child: Column(
-                    children: [
-                      topbar(wide),
-                      Expanded(
-                        child: Align(
-                          alignment: Alignment.topCenter,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 1180),
-                            child: ListView(
-                              padding: EdgeInsets.fromLTRB(
-                                wide ? 44 : 20,
-                                wide ? 25 : 12,
-                                wide ? 44 : 20,
-                                112,
-                              ),
-                              children: [
-                                header(wide),
-                                const SizedBox(height: 27),
-                                if (page == 1 &&
-                                    collection == null &&
-                                    !archived) ...[
-                                  collectionBoard(),
-                                ] else ...[
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: TextField(
-                                          onChanged:
-                                              (value) => setState(
-                                                () => search = value,
-                                              ),
-                                          decoration: InputDecoration(
-                                            hintText:
-                                                'Find a little something…',
-                                            prefixIcon: const Icon(
-                                              Icons.search_rounded,
-                                              size: 22,
-                                            ),
-                                            filled: true,
-                                            fillColor:
-                                                Theme.of(
-                                                  context,
-                                                ).colorScheme.surface,
-                                            border: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(16),
-                                              borderSide: BorderSide.none,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      IconButton.filledTonal(
-                                        tooltip:
-                                            archived
-                                                ? 'Show your pocket'
-                                                : 'Open archive',
-                                        onPressed:
-                                            () => setState(
-                                              () => archived = !archived,
-                                            ),
-                                        icon: Icon(
-                                          archived
-                                              ? Icons.inventory_2_rounded
-                                              : Icons.inventory_2_outlined,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 20),
-                                  if (page != 2) filters(),
-                                  const SizedBox(height: 24),
-                                  Row(
-                                    children: [
-                                      SmallLabel(
-                                        archived
-                                            ? 'Safely tucked away'
-                                            : 'Your little things',
-                                      ),
-                                      const Spacer(),
-                                      Text(
-                                        entries.length.toString() +
-                                            (entries.length == 1
-                                                ? ' item'
-                                                : ' items'),
-                                        style:
-                                            Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  if (entries.isEmpty)
-                                    emptyState()
-                                  else
-                                    board(entries),
-                                  if (store.entries.any(
-                                    (entry) => entry.isExample,
-                                  )) ...[
-                                    const SizedBox(height: 28),
-                                    Row(
-                                      children: [
-                                        const Icon(
-                                          Icons.auto_awesome_outlined,
-                                          size: 17,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        const Expanded(
-                                          child: Text(
-                                            'You’re exploring example items.',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                        ),
-                                        TextButton(
-                                          onPressed:
-                                              () => act(store.clearExamples),
-                                          child: const Text('Clear examples'),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ],
-                                const SizedBox(height: 36),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      Icons.phone_iphone_rounded,
-                                      size: 14,
-                                      color:
-                                          Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        'On your device. Yours to keep.',
-                                        textAlign: TextAlign.center,
-                                        style:
-                                            Theme.of(
-                                              context,
-                                            ).textTheme.bodySmall,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1180),
+                      child: list,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          floatingActionButton:
-              store.entries.isEmpty &&
-                      page == 0 &&
-                      !archived &&
-                      collection == null
-                  ? null
-                  : FloatingActionButton.extended(
-                    onPressed: create,
-                    tooltip: 'Create something',
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Create'),
-                  ),
           bottomNavigationBar:
               wide
                   ? null
-                  : NavigationBar(
-                    selectedIndex: page,
-                    onDestinationSelected: selectPage,
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.grid_view_rounded),
-                        label: 'My pocket',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.folder_outlined),
-                        label: 'Collections',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.mark_email_unread_outlined),
-                        label: 'Open later',
-                      ),
-                    ],
+                  : PocketBar(
+                    index: page,
+                    onSelect: selectPage,
+                    onCreate: create,
                   ),
         );
       },
     );
   }
 
-  void selectPage(int value) => setState(() {
-    page = value;
-    collection = null;
-    archived = false;
-    filter = null;
-    search = '';
-  });
-
-  Widget topbar(bool wide) => Padding(
-    padding: EdgeInsets.fromLTRB(wide ? 38 : 16, 12, wide ? 38 : 12, 6),
-    child: Row(
+  Widget header(bool wide, bool inlineSearch, int count) {
+    final palette = PocketPalette.of(context);
+    final title =
+        collection ??
+        switch (page) {
+          1 => 'Collections',
+          2 => 'Open later',
+          3 => 'Archive',
+          _ =>
+            store.ownerName.trim().isEmpty
+                ? 'My pocket'
+                : '${store.ownerName.trim()}’s pocket',
+        };
+    final total = collectionList ? store.collections.length : count;
+    final noun = collectionList ? 'collection' : 'thing';
+    final titleBlock = Row(
       children: [
-        if (!wide) ...[
-          const PocketMark(size: 38),
-          const SizedBox(width: 7),
-          const Text(
-            'pocklino',
-            style: TextStyle(
-              fontFamily: 'Lora',
-              fontSize: 23,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -1,
+        if (collection != null)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: IconButton(
+              tooltip: 'All collections',
+              onPressed: () {
+                searchText.clear();
+                setState(() {
+                  collection = null;
+                  filter = null;
+                  search = '';
+                });
+              },
+              icon: const Icon(Icons.arrow_back_rounded),
             ),
           ),
-        ] else
-          Row(
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.circle, size: 7, color: PocklinoColors.success),
-              const SizedBox(width: 8),
-              const SmallLabel('A space that’s only yours'),
+              Semantics(
+                header: true,
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PocketType.display(
+                    wide ? 38 : 31,
+                    color: palette.ink,
+                    height: 1.12,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              MonoLabel(
+                store.entries.isEmpty && !collectionList
+                    ? 'Empty for now'
+                    : '$total ${total == 1 ? noun : '${noun}s'}',
+                size: 11,
+              ),
             ],
           ),
-        const Spacer(),
+        ),
+      ],
+    );
+    if (wide) {
+      return Row(
+        children: [
+          Expanded(child: titleBlock),
+          if (inlineSearch && !collectionList) ...[
+            const SizedBox(width: 24),
+            SizedBox(width: 340, child: searchField()),
+          ],
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: titleBlock),
         IconButton(
           tooltip: 'Receive a note',
           onPressed: () => showReceiveSheet(context, store),
@@ -461,262 +389,80 @@ class _PocketHomeState extends State<PocketHome> {
         ),
         IconButton(
           tooltip: 'Settings',
-          onPressed:
-              () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (_) => SettingsPage(store: store),
-                ),
-              ),
+          onPressed: openSettings,
           icon: const Icon(Icons.tune_rounded),
         ),
-      ],
-    ),
-  );
-
-  Widget sidebar() => Container(
-    width: 230,
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface,
-      border: Border(
-        right: BorderSide(
-          color: Theme.of(context).dividerColor.withValues(alpha: .3),
-        ),
-      ),
-    ),
-    padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Row(
-          children: [
-            PocketMark(size: 42),
-            SizedBox(width: 8),
-            Text(
-              'pocklino',
-              style: TextStyle(
-                fontFamily: 'Lora',
-                fontSize: 26,
-                letterSpacing: -1,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        const Padding(
-          padding: EdgeInsets.only(left: 7, top: 10),
-          child: Text(
-            'A little space for your life.',
-            style: TextStyle(fontSize: 11),
-          ),
-        ),
-        const SizedBox(height: 42),
-        for (final (index, icon, label) in [
-          (0, Icons.grid_view_rounded, 'My pocket'),
-          (1, Icons.folder_outlined, 'Collections'),
-          (2, Icons.mark_email_unread_outlined, 'Open later'),
-        ])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 7),
-            child: ListTile(
-              dense: true,
-              selected: page == index,
-              selectedTileColor: PocklinoColors.butter.withValues(alpha: .45),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              leading: Icon(icon, size: 20),
-              title: Text(
-                label,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-              onTap: () => selectPage(index),
-            ),
-          ),
-        const SizedBox(height: 26),
-        const Padding(
-          padding: EdgeInsets.only(left: 12),
-          child: SmallLabel('Collections'),
-        ),
-        const SizedBox(height: 10),
-        for (final name in store.collections.take(6))
-          ListTile(
-            dense: true,
-            leading: Icon(
-              Icons.circle,
-              size: 8,
-              color:
-                  PocklinoColors.cardColors[store.collections.indexOf(name) %
-                      PocklinoColors.cardColors.length],
-            ),
-            title: Text(name, overflow: TextOverflow.ellipsis),
-            onTap:
-                () => setState(() {
-                  page = 1;
-                  collection = name;
-                  filter = null;
-                  archived = false;
-                }),
-          ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: PocklinoColors.mint,
-            borderRadius: BorderRadius.circular(17),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.qr_code_rounded, color: PocklinoColors.ink),
-              const SizedBox(height: 9),
-              const Text(
-                'Good things are\nnice to pass on.',
-                style: TextStyle(
-                  fontFamily: 'Lora',
-                  color: PocklinoColors.ink,
-                  fontSize: 18,
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextButton(
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  foregroundColor: PocklinoColors.ink,
-                ),
-                onPressed: () => showReceiveSheet(context, store),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Receive a note'),
-                    SizedBox(width: 7),
-                    Icon(Icons.arrow_forward_rounded, size: 16),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
-
-  Widget header(bool wide) {
-    final title =
-        archived
-            ? 'Tucked away.'
-            : collection ??
-                switch (page) {
-                  1 => 'A place for everything.',
-                  2 => 'Good things take time.',
-                  _ =>
-                    store.ownerName.trim().isEmpty
-                        ? 'Your little world.'
-                        : '${store.ownerName}’s little world.',
-                };
-    final subtitle =
-        archived
-            ? 'Still yours. Just a little out of the way.'
-            : page == 2
-            ? 'Little envelopes for moments worth waiting for.'
-            : page == 1
-            ? 'Gather your plans, favorites, and everyday things.'
-            : 'Plans, lists & lovely little things. All in your pocket.';
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (collection != null)
-                TextButton.icon(
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  onPressed: () => setState(() => collection = null),
-                  icon: const Icon(Icons.arrow_back_rounded, size: 16),
-                  label: const Text('All collections'),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SmallLabel(
-                    page == 2
-                        ? 'A little anticipation'
-                        : 'Make yourself at home',
-                  ),
-                ),
-              Text(
-                title,
-                style: TextStyle(
-                  fontFamily: 'Lora',
-                  fontSize: wide ? 41 : 31,
-                  height: 1.18,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: -1.3,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: wide ? 15 : 13,
-                  height: 1.5,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (wide)
-          Padding(
-            padding: const EdgeInsets.only(left: 20),
-            child: Transform.rotate(
-              angle: .06,
-              child: const PocketMark(size: 108),
-            ),
-          ),
       ],
     );
   }
 
-  Widget filters() => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
-    child: Row(
-      children: [
-        filterChip(null, 'Everything'),
-        for (final kind in EntryKind.values) filterChip(kind, kind.plural),
-      ],
+  Widget searchField() => TextField(
+    controller: searchText,
+    onChanged: (value) => setState(() => search = value),
+    textInputAction: TextInputAction.search,
+    decoration: InputDecoration(
+      hintText: 'Search your pocket',
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+      prefixIcon: const Icon(Icons.search_rounded, size: 21),
+      suffixIcon:
+          search.isEmpty
+              ? null
+              : IconButton(
+                tooltip: 'Clear search',
+                onPressed: clearSearch,
+                icon: const Icon(Icons.close_rounded, size: 19),
+              ),
     ),
   );
 
-  Widget filterChip(EntryKind? kind, String label) => Padding(
-    padding: const EdgeInsets.only(right: 8),
-    child: ChoiceChip(
-      label: Text(label),
-      selected: filter == kind,
-      showCheckmark: false,
-      onSelected: (_) => setState(() => filter = kind),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 7),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+  Widget filters(bool wide) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    // On a phone the chips run on to the edge of the screen.
+    clipBehavior: wide ? Clip.hardEdge : Clip.none,
+    child: Row(
+      children: [
+        _FilterChip(
+          label: 'Everything',
+          selected: filter == null,
+          onTap: () => setState(() => filter = null),
+        ),
+        for (final kind in EntryKind.values)
+          _FilterChip(
+            label: kind.plural,
+            shape: kind.shape,
+            selected: filter == kind,
+            onTap: () => setState(() => filter = kind),
+          ),
+      ],
     ),
   );
 
   Widget board(List<PocketEntry> entries) => LayoutBuilder(
     builder: (context, constraints) {
+      // Larger text needs wider papers, so it gets fewer columns.
+      final scale = (MediaQuery.textScalerOf(context).scale(100) / 100).clamp(
+        1.0,
+        2.0,
+      );
+      final width = constraints.maxWidth / scale;
       final count =
-          constraints.maxWidth >= 820
+          width >= 1000
+              ? 4
+              : width >= 640
               ? 3
-              : constraints.maxWidth >= 340
+              : width >= 300
               ? 2
               : 1;
-      const gap = 16.0;
+      final gap = constraints.maxWidth >= 640 ? 18.0 : 12.0;
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (int column = 0; column < count; column++) ...[
-            if (column > 0) const SizedBox(width: gap),
+            if (column > 0) SizedBox(width: gap),
             Expanded(
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   for (
                     int index = column;
@@ -724,7 +470,8 @@ class _PocketHomeState extends State<PocketHome> {
                     index += count
                   )
                     Padding(
-                      padding: const EdgeInsets.only(bottom: gap),
+                      key: ValueKey(entries[index].id),
+                      padding: EdgeInsets.only(bottom: gap + 4),
                       child: entryCard(entries[index]),
                     ),
                 ],
@@ -737,325 +484,420 @@ class _PocketHomeState extends State<PocketHome> {
   );
 
   Widget entryCard(PocketEntry entry) {
+    final palette = PocketPalette.of(context);
+    final stock = palette.stock(entry.colorIndex);
     final locked = entry.isLocked;
-    return Material(
-      color: entryColor(entry),
-      borderRadius: BorderRadius.circular(21),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(21),
-        onTap: () => edit(entry),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 219),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(17, 11, 13, 17),
-            child: DefaultTextStyle(
-              style: const TextStyle(
-                fontFamily: 'DMSans',
-                fontFamilyFallback: ['NotoEmoji', 'Roboto'],
-                color: PocklinoColors.ink,
-                fontSize: 13,
-              ),
-              child: Column(
+    final title = Text(
+      entry.title.isEmpty
+          ? 'Untitled ${entry.kind.label.toLowerCase()}'
+          : entry.title,
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+      style: PocketType.display(19, color: stock.ink),
+    );
+    Widget body(int lines) => Padding(
+      padding: const EdgeInsets.only(top: 7),
+      child: Text(entry.body, maxLines: lines, overflow: TextOverflow.ellipsis),
+    );
+    final badges = [
+      if (entry.received && !entry.isExample)
+        Tooltip(
+          message: 'Received',
+          child: Icon(
+            Icons.call_received_rounded,
+            size: 13,
+            color: stock.inkMuted,
+          ),
+        ),
+      if (entry.isExample) Stamp('EXAMPLE', color: stock.inkMuted),
+    ];
+    PopupMenuItem<String> action(String value, IconData icon, String label) =>
+        PopupMenuItem(
+          value: value,
+          child: Row(
+            children: [
+              Icon(icon, size: 19),
+              const SizedBox(width: 12),
+              Text(label),
+            ],
+          ),
+        );
+    final actions = MenuButton<String>(
+      tooltip: 'Item actions',
+      onSelected: (action) => menu(entry, action),
+      items:
+          () => [
+            action(
+              'pin',
+              entry.pinned ? Icons.push_pin_rounded : Icons.push_pin_outlined,
+              entry.pinned ? 'Unpin' : 'Pin to top',
+            ),
+            if (!locked) action('pass', Icons.qr_code_rounded, 'Pass a copy'),
+            if (!locked)
+              action('copy', Icons.content_copy_rounded, 'Make a copy'),
+            action(
+              'archive',
+              entry.archived
+                  ? Icons.unarchive_outlined
+                  : Icons.inventory_2_outlined,
+              entry.archived ? 'Bring back' : 'Archive',
+            ),
+            action('delete', Icons.delete_outline_rounded, 'Delete'),
+          ],
+      child: SizedBox.square(
+        dimension: 44,
+        child: Icon(Icons.more_horiz_rounded, size: 20, color: stock.inkMuted),
+      ),
+    );
+    // The stamp drops to a line of its own before it crowds out the name.
+    final footer = Row(
+      children: [
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              MonoLabel(entry.collection, color: stock.inkMuted),
+              ...badges,
+            ],
+          ),
+        ),
+        actions,
+      ],
+    );
+    final items = [
+      for (final item in entry.items.take(entry.kind == EntryKind.trip ? 3 : 5))
+        Semantics(
+          checked: item.done,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => act(() => store.toggleItem(entry.id, item.id)),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        locked ? Icons.lock_outline_rounded : entry.kind.icon,
-                        size: 19,
-                        color: PocklinoColors.ink,
-                      ),
-                      if (entry.pinned)
-                        const Padding(
-                          padding: EdgeInsets.only(left: 7),
-                          child: Icon(
-                            Icons.push_pin_rounded,
-                            size: 12,
-                            color: PocklinoColors.ink,
-                          ),
-                        ),
-                      const Spacer(),
-                      PopupMenuButton<String>(
-                        tooltip: 'Item actions',
-                        padding: EdgeInsets.zero,
-                        icon: const Icon(
-                          Icons.more_horiz_rounded,
-                          color: PocklinoColors.ink,
-                        ),
-                        onSelected: (action) => menu(entry, action),
-                        itemBuilder:
-                            (_) => [
-                              PopupMenuItem(
-                                value: 'pin',
-                                child: Text(
-                                  entry.pinned ? 'Unpin' : 'Pin to top',
-                                ),
-                              ),
-                              if (!locked)
-                                const PopupMenuItem(
-                                  value: 'pass',
-                                  child: Text('Pass a copy'),
-                                ),
-                              if (!locked)
-                                const PopupMenuItem(
-                                  value: 'copy',
-                                  child: Text('Make a copy'),
-                                ),
-                              PopupMenuItem(
-                                value: 'archive',
-                                child: Text(
-                                  entry.archived ? 'Bring back' : 'Archive',
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Text('Delete'),
-                              ),
-                            ],
-                      ),
-                    ],
+                  Padding(
+                    padding: const EdgeInsets.only(top: 1),
+                    child: InkCheck(done: item.done, stock: stock, size: 15),
                   ),
-                  if (entry.kind == EntryKind.letter) ...[
-                    Center(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          locked ? '💌' : entry.emoji,
-                          style: const TextStyle(
-                            fontFamily: 'NotoEmoji',
-                            fontSize: 37,
-                          ),
-                        ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      item.text,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: PocketType.body(
+                        13,
+                        color: item.done ? stock.inkMuted : stock.ink,
+                        height: 1.3,
+                      ).copyWith(
+                        decoration:
+                            item.done ? TextDecoration.lineThrough : null,
                       ),
                     ),
-                  ] else if (entry.kind == EntryKind.trip) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        entry.emoji,
-                        style: const TextStyle(
-                          fontFamily: 'NotoEmoji',
-                          fontSize: 32,
-                        ),
-                      ),
-                    ),
-                  ],
-                  Text(
-                    entry.title.isEmpty
-                        ? 'Untitled ${entry.kind.label.toLowerCase()}'
-                        : entry.title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontFamily: 'Lora',
-                      fontSize: 21,
-                      height: 1.22,
-                      color: PocklinoColors.ink,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (locked)
-                    Text(
-                      'Opens ${niceTime(entry.unlockAt!)}',
-                      style: const TextStyle(fontSize: 12, height: 1.5),
-                    )
-                  else if (entry.kind == EntryKind.checklist ||
-                      entry.kind == EntryKind.trip &&
-                          entry.items.isNotEmpty) ...[
-                    for (final item in entry.items.take(4))
-                      InkWell(
-                        borderRadius: BorderRadius.circular(5),
-                        onTap:
-                            () =>
-                                act(() => store.toggleItem(entry.id, item.id)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 7),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                item.done
-                                    ? Icons.check_box_rounded
-                                    : Icons.check_box_outline_blank_rounded,
-                                size: 17,
-                                color: PocklinoColors.ink.withValues(
-                                  alpha: item.done ? .45 : .8,
-                                ),
-                              ),
-                              const SizedBox(width: 7),
-                              Expanded(
-                                child: Text(
-                                  item.text,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    height: 1.3,
-                                    fontSize: 12,
-                                    color: PocklinoColors.ink.withValues(
-                                      alpha: item.done ? .5 : 1,
-                                    ),
-                                    decoration:
-                                        item.done
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (entry.items.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8, bottom: 4),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value:
-                                entry.items.where((e) => e.done).length /
-                                entry.items.length,
-                            minHeight: 3,
-                            color: PocklinoColors.ink.withValues(alpha: .55),
-                            backgroundColor: PocklinoColors.ink.withValues(
-                              alpha: .08,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ] else ...[
-                    if (entry.body.isNotEmpty)
-                      Text(
-                        entry.body,
-                        maxLines: entry.kind == EntryKind.note ? 5 : 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(height: 1.7),
-                      ),
-                    if (entry.kind == EntryKind.movie) ...[
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Icon(
-                            entry.watched
-                                ? Icons.check_circle_outline
-                                : Icons.play_circle_outline_rounded,
-                            size: 15,
-                            color: PocklinoColors.ink,
-                          ),
-                          const SizedBox(width: 5),
-                          Expanded(
-                            child: Text(
-                              entry.watched
-                                  ? 'Watched'
-                                  : 'Movie night material',
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ],
-                  if (entry.kind == EntryKind.trip && entry.date != null) ...[
-                    const SizedBox(height: 9),
-                    Text(
-                      niceDate(entry.date!),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          entry.collection.toUpperCase(),
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 9,
-                            letterSpacing: 1.3,
-                            fontWeight: FontWeight.w700,
-                            color: PocklinoColors.ink.withValues(alpha: .65),
-                          ),
-                        ),
-                      ),
-                      if (entry.isExample)
-                        const Text(
-                          'EXAMPLE',
-                          style: TextStyle(fontSize: 8, letterSpacing: .5),
-                        ),
-                      if (entry.received && !entry.isExample)
-                        const Icon(
-                          Icons.call_received_rounded,
-                          size: 12,
-                          color: PocklinoColors.ink,
-                        ),
-                    ],
                   ),
                 ],
               ),
             ),
           ),
         ),
+    ];
+    final hidden = entry.items.length - items.length;
+    final more =
+        hidden > 0
+            ? Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: MonoLabel('+ $hidden more', color: stock.inkMuted),
+            )
+            : null;
+    void open() => edit(entry);
+    // Everything above the footer keeps clear of the paper's right edge. The
+    // footer runs on to it, which gives the menu a full-size target.
+    Widget page(List<Widget> content) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: _menuReach),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: content,
+          ),
+        ),
+        footer,
+      ],
+    );
+    const padding = EdgeInsets.fromLTRB(14, 14, 14 - _menuReach, 4);
+
+    // A page that may not be opened yet is a sealed envelope, whatever kind
+    // it is. It shows its title, its sender and its opening time only.
+    switch (locked ? EntryKind.letter : entry.kind) {
+      case EntryKind.note:
+        return Paper(
+          shape: PaperShape.slip,
+          stock: stock,
+          pinned: entry.pinned,
+          onTap: open,
+          padding: padding,
+          child: page([title, if (entry.body.isNotEmpty) body(6)]),
+        );
+      case EntryKind.checklist:
+        final done = entry.items.where((item) => item.done).length;
+        return Paper(
+          shape: PaperShape.receipt,
+          stock: stock,
+          pinned: entry.pinned,
+          onTap: open,
+          padding: padding,
+          child: page([
+            title,
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              ...items,
+              if (more != null) more,
+            ] else if (entry.body.isNotEmpty)
+              body(4),
+            const SizedBox(height: 10),
+            DashedRule(color: stock.inkLine),
+            if (items.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  children: [
+                    Expanded(child: MonoLabel('Done', color: stock.inkMuted)),
+                    MonoLabel('$done/${entry.items.length}', color: stock.ink),
+                  ],
+                ),
+              ),
+          ]),
+        );
+      case EntryKind.movie:
+        return Paper(
+          shape: PaperShape.ticket,
+          stock: stock,
+          pinned: entry.pinned,
+          onTap: open,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14 - _menuReach, 14),
+          stubHeight: 44,
+          stub: Row(
+            children: [
+              Icon(
+                entry.watched
+                    ? Icons.check_circle_rounded
+                    : Icons.play_arrow_rounded,
+                size: 15,
+                color: stock.ink,
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                child: MonoLabel(
+                  entry.watched ? 'Watched' : 'To watch',
+                  color: stock.ink,
+                ),
+              ),
+              if (entry.url.isNotEmpty)
+                Icon(Icons.link_rounded, size: 15, color: stock.inkMuted),
+              actions,
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.only(right: _menuReach),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: MonoLabel(entry.collection, color: stock.inkMuted),
+                    ),
+                    for (final badge in badges) ...[
+                      const SizedBox(width: 6),
+                      badge,
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 6),
+                title,
+                if (entry.body.isNotEmpty) body(3),
+              ],
+            ),
+          ),
+        );
+      case EntryKind.trip:
+        return Paper(
+          shape: PaperShape.tag,
+          stock: stock,
+          pinned: entry.pinned,
+          onTap: open,
+          padding: padding,
+          child: page([
+            title,
+            if (entry.date != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 7),
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: MonoLabel(
+                        shortDate(entry.date!),
+                        color: stock.ink,
+                      ),
+                    ),
+                    if (entry.endDate != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        child: Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 12,
+                          color: stock.ink,
+                        ),
+                      ),
+                      Flexible(
+                        child: MonoLabel(
+                          shortDate(entry.endDate!),
+                          color: stock.ink,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            if (items.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              ...items,
+              if (more != null) more,
+            ] else if (entry.body.isNotEmpty)
+              body(3),
+          ]),
+        );
+      case EntryKind.letter:
+        final opens =
+            entry.unlockAt != null && entry.unlockAt!.isAfter(DateTime.now());
+        final who =
+            entry.received
+                ? (entry.sender.isEmpty ? null : 'From ${entry.sender}')
+                : (entry.recipient.isEmpty ? null : 'For ${entry.recipient}');
+        return Paper(
+          shape: PaperShape.envelope,
+          stock: stock,
+          pinned: entry.pinned,
+          onTap: open,
+          padding: const EdgeInsets.fromLTRB(14, 0, 14 - _menuReach, 4),
+          child: page([
+            SealOnFlap(
+              inset: 14,
+              sealSize: 36,
+              seal:
+                  locked
+                      ? const WaxSeal(icon: Icons.lock_rounded)
+                      : WaxSeal(emoji: entry.emoji),
+            ),
+            const SizedBox(height: 10),
+            title,
+            if (who != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 7),
+                child: MonoLabel(who, color: stock.inkMuted),
+              ),
+            if (opens)
+              Padding(
+                padding: const EdgeInsets.only(top: 5),
+                child: MonoLabel(
+                  'Opens ${niceTime(entry.unlockAt!)}',
+                  color: stock.ink,
+                ),
+              ),
+            if (!locked && entry.body.isNotEmpty) body(3),
+          ]),
+        );
+    }
+  }
+
+  Widget examplesNote() {
+    final palette = PocketPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        children: [
+          Icon(Icons.auto_awesome_outlined, size: 17, color: palette.muted),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'You’re exploring example items.',
+              style: PocketType.body(13, color: palette.muted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => act(store.clearExamples),
+            child: const Text('Clear examples'),
+          ),
+        ],
       ),
     );
   }
 
   Widget emptyState() {
+    final palette = PocketPalette.of(context);
     final isNew =
         store.entries.isEmpty &&
         search.isEmpty &&
         filter == null &&
         collection == null &&
-        page == 0 &&
-        !archived;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 42),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: .25),
-        ),
-      ),
+        page == 0;
+    final String title;
+    final String text;
+    if (isNew) {
+      title = 'Start with one little thing.';
+      text =
+          'A thought, a list, a place to go.\nNo account. Just you and your pocket.';
+    } else if (search.isNotEmpty) {
+      title = 'Nothing found.';
+      text = 'Nothing matches this search. Try a different word.';
+    } else if (archived && filter == null) {
+      title = 'Nothing archived.';
+      text = 'Things you archive rest here, out of the way but still yours.';
+    } else if (archived) {
+      title = 'Nothing here yet.';
+      text = 'Nothing of this kind is archived. Try another filter.';
+    } else if (page == 2) {
+      title = 'No envelopes waiting.';
+      text =
+          'Write a letter and choose an opening time,\nor receive one from someone you love.';
+    } else {
+      title = 'Nothing here yet.';
+      text = 'Create something new, or try another filter.';
+    }
+    return GhostPaper(
+      padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 38),
       child: Column(
         children: [
-          const PocketMark(size: 100),
-          const SizedBox(height: 22),
+          PocketMark(size: 92, background: palette.night),
+          const SizedBox(height: 20),
           Text(
-            isNew
-                ? 'Start with one little thing.'
-                : page == 2
-                ? 'A little surprise belongs here.'
-                : 'A little room to grow.',
+            title,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
-            isNew
-                ? 'A thought, a list, a place to go.\nNo account. Just you and your pocket.'
-                : search.isNotEmpty
-                ? 'Nothing matches this search. Try a different word.'
-                : page == 2
-                ? 'Create a little note and choose an opening time,\nor receive an envelope from someone you love.'
-                : 'Create something new, or try another filter.',
+            text,
             textAlign: TextAlign.center,
-            style: const TextStyle(height: 1.7),
+            style: PocketType.body(15, color: palette.muted, height: 1.55),
           ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: create,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(isNew ? 'Create your first item' : 'Create something'),
-          ),
+          if (!archived && search.isEmpty) ...[
+            const SizedBox(height: 22),
+            FilledButton.icon(
+              onPressed: create,
+              icon: const Icon(Icons.add_rounded),
+              label: Text(
+                isNew ? 'Create your first item' : 'Create something',
+              ),
+            ),
+          ],
           if (isNew)
             Padding(
-              padding: const EdgeInsets.only(top: 10),
+              padding: const EdgeInsets.only(top: 8),
               child: TextButton(
                 onPressed: () => act(store.addExamples),
                 child: const Text('Take a peek at an example pocket'),
@@ -1066,86 +908,339 @@ class _PocketHomeState extends State<PocketHome> {
     );
   }
 
-  Widget collectionBoard() => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Row(
+  Widget collectionBoard() => LayoutBuilder(
+    builder: (context, constraints) {
+      final palette = PocketPalette.of(context);
+      final count =
+          constraints.maxWidth >= 860
+              ? 3
+              : constraints.maxWidth >= 520
+              ? 2
+              : 1;
+      const gap = 16.0;
+      final width = (constraints.maxWidth - gap * (count - 1)) / count;
+      return Wrap(
+        spacing: gap,
+        runSpacing: gap + 4,
         children: [
-          const Expanded(child: SmallLabel('Give your things a home')),
-          TextButton.icon(
-            onPressed: addCollection,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('New collection'),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-      for (int i = 0; i < store.collections.length; i++)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Material(
-            color:
-                PocklinoColors.cardColors[i % PocklinoColors.cardColors.length],
-            borderRadius: BorderRadius.circular(20),
-            child: ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 22,
-                vertical: 16,
-              ),
-              leading: const Icon(
-                Icons.folder_outlined,
-                color: PocklinoColors.ink,
-                size: 30,
-              ),
-              title: Text(
-                store.collections[i],
-                style: const TextStyle(
-                  fontFamily: 'Lora',
-                  fontSize: 22,
-                  color: PocklinoColors.ink,
+          for (int i = 0; i < store.collections.length; i++)
+            SizedBox(
+              width: width,
+              child: collectionFolder(i, palette.stock(i)),
+            ),
+          SizedBox(
+            width: width,
+            child: Padding(
+              padding: const EdgeInsets.only(top: PaperBorder.tab),
+              child: GhostPaper(
+                onTap: addCollection,
+                radius: 8,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 23,
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.add_rounded, color: palette.ink),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'New collection',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: PocketType.body(
+                          15,
+                          color: palette.ink,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              subtitle: Text(
-                '${store.entries.where((e) => e.collection == store.collections[i] && !e.archived).length} little things',
-                style: const TextStyle(color: PocklinoColors.ink),
+            ),
+          ),
+        ],
+      );
+    },
+  );
+
+  Widget collectionFolder(int index, PaperStock stock) {
+    final name = store.collections[index];
+    final count =
+        store.entries
+            .where((entry) => entry.collection == name && !entry.archived)
+            .length;
+    final removable = name != 'Everyday';
+    return Paper(
+      shape: PaperShape.folder,
+      stock: stock,
+      padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
+      onTap: () => openCollection(name),
+      onLongPress: removable ? () => removeCollection(name) : null,
+      child: Row(
+        children: [
+          Expanded(
+            // The name is the button a reader hears; the menu beside it
+            // stays a control of its own.
+            child: Semantics(
+              button: true,
+              onTap: () => openCollection(name),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PocketType.display(20, color: stock.ink),
+                  ),
+                  const SizedBox(height: 4),
+                  MonoLabel(
+                    '$count ${count == 1 ? 'thing' : 'things'}',
+                    color: stock.inkMuted,
+                  ),
+                ],
               ),
-              trailing: const Icon(
-                Icons.arrow_forward_rounded,
-                color: PocklinoColors.ink,
+            ),
+          ),
+          if (removable)
+            MenuButton<String>(
+              tooltip: 'Collection actions',
+              onSelected: (_) => removeCollection(name),
+              items:
+                  () => const [
+                    PopupMenuItem(
+                      value: 'remove',
+                      child: Text('Remove collection'),
+                    ),
+                  ],
+              child: SizedBox.square(
+                dimension: 48,
+                child: Icon(Icons.more_horiz_rounded, color: stock.inkMuted),
               ),
-              onTap: () => setState(() => collection = store.collections[i]),
-              onLongPress:
-                  store.collections[i] == 'Everyday'
-                      ? null
-                      : () async {
-                        final name = store.collections[i];
-                        final yes = await showDialog<bool>(
-                          context: context,
-                          builder:
-                              (ctx) => AlertDialog(
-                                title: Text('Remove “$name”?'),
-                                content: const Text(
-                                  'Your items will move to Everyday. Nothing will be deleted.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Keep it'),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Remove collection'),
-                                  ),
-                                ],
-                              ),
-                        );
-                        if (yes == true) {
-                          await act(() => store.deleteCollection(name));
-                        }
-                      },
+            )
+          else
+            SizedBox.square(
+              dimension: 48,
+              child: Icon(Icons.arrow_forward_rounded, color: stock.inkMuted),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterChip extends StatelessWidget {
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.shape,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  final PaperShape? shape;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PocketPalette.of(context);
+    final ink = selected ? PocklinoColors.deepInk : palette.ink;
+    final border = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(10),
+      side: BorderSide(
+        color:
+            selected
+                ? (palette.night ? palette.butter : palette.ink)
+                : palette.ink.withValues(alpha: palette.night ? .3 : .38),
+        width: palette.stroke,
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Semantics(
+        button: true,
+        selected: selected,
+        child: Material(
+          color: selected ? palette.butter : Colors.transparent,
+          shape: border,
+          child: InkWell(
+            onTap: onTap,
+            customBorder: border,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (shape != null) ...[
+                    PaperGlyph(shape!, size: 15, color: ink),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    label,
+                    style: PocketType.body(
+                      13.5,
+                      color: ink,
+                      weight: FontWeight.w600,
+                      height: 1.2,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
-    ],
-  );
+      ),
+    );
+  }
+}
+
+/// The five kinds of page, each offered as the paper it will be kept on,
+/// and the way to take in a page someone else is passing.
+class _CreateSheet extends StatelessWidget {
+  const _CreateSheet();
+
+  /// Returned instead of an [EntryKind] when the user wants to receive.
+  static const receive = 'receive';
+  static const _gap = 14.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = PocketPalette.of(context);
+    Widget words(String label, String hint, Color ink, Color muted) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: PocketType.display(18, color: ink),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          hint,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: PocketType.body(12.5, color: muted, height: 1.3),
+        ),
+      ],
+    );
+    Widget option(EntryKind kind, double width) {
+      final stock = palette.stock(kind.paper);
+      final text = words(kind.label, kind.hint, stock.ink, stock.inkMuted);
+      return Paper(
+        shape: kind.shape,
+        stock: stock,
+        onTap: () => Navigator.pop(context, kind),
+        button: true,
+        padding:
+            kind == EntryKind.letter
+                ? const EdgeInsets.fromLTRB(14, 0, 14, 14)
+                : const EdgeInsets.fromLTRB(14, 13, 14, 12),
+        stubHeight: 30,
+        stub:
+            kind == EntryKind.movie
+                ? Align(
+                  alignment: Alignment.centerLeft,
+                  child: MonoLabel('Admit one', color: stock.inkMuted),
+                )
+                : null,
+        child:
+            kind == EntryKind.letter
+                ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SealOnFlap(
+                      inset: 14,
+                      sealSize: 32,
+                      paperWidth: width,
+                      seal: WaxSeal(emoji: kind.sticker, size: 32),
+                    ),
+                    const SizedBox(height: 8),
+                    text,
+                  ],
+                )
+                : text,
+      );
+    }
+
+    Widget pair(Widget left, Widget right) => IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: left),
+          const SizedBox(width: _gap),
+          Expanded(child: right),
+        ],
+      ),
+    );
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 22),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = (constraints.maxWidth - _gap) / 2;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SheetHandle(),
+                const SizedBox(height: 16),
+                Text(
+                  'Make room for something.',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Big plans. Small thoughts. All welcome here.',
+                  style: PocketType.body(14, color: palette.muted),
+                ),
+                const SizedBox(height: 20),
+                pair(
+                  option(EntryKind.note, width),
+                  option(EntryKind.checklist, width),
+                ),
+                const SizedBox(height: 18),
+                pair(
+                  option(EntryKind.movie, width),
+                  option(EntryKind.trip, width),
+                ),
+                const SizedBox(height: 18),
+                pair(
+                  option(EntryKind.letter, width),
+                  GhostPaper(
+                    radius: 8,
+                    padding: const EdgeInsets.fromLTRB(14, 13, 14, 12),
+                    onTap: () => Navigator.pop(context, receive),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Icon(
+                          Icons.qr_code_scanner_rounded,
+                          size: 26,
+                          color: palette.ink,
+                        ),
+                        const SizedBox(height: 10),
+                        words(
+                          'Receive',
+                          'Something passed to you',
+                          palette.ink,
+                          palette.muted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
 }

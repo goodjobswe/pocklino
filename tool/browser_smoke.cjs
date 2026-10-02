@@ -49,6 +49,7 @@ const { chromium } = require('../.dart_tool/browser-check/node_modules/playwrigh
     await page.getByRole('textbox',{name:'Give this thought a home…'}).click(); await page.keyboard.insertText('A little browser check'); await page.waitForTimeout(180);
     await page.getByRole('textbox',{name:'Let your thoughts land here.'}).click(); await page.keyboard.insertText('Café, tomorrow at 10. A small thing worth keeping.'); await page.waitForTimeout(180);
     await page.waitForTimeout(900);
+    await page.screenshot({path:'artifacts/desktop-editor.png'});
     await page.getByRole('button',{name:'Save and go back'}).click();
     assert.match(await page.locator('body').ariaSnapshot(), /A little browser check/);
     await page.reload({waitUntil:'domcontentloaded'});
@@ -59,6 +60,9 @@ const { chromium } = require('../.dart_tool/browser-check/node_modules/playwrigh
     console.log('PASS: browser local storage survives reload');
     await page.getByRole('group',{name:/A little browser check/}).click();
     await page.getByRole('button',{name:'Pass',exact:true}).click();
+    // Let the sheet finish sliding up before its code is photographed.
+    await page.getByRole('img',{name:/Pocklino pass code/}).waitFor();
+    await page.waitForTimeout(700);
     if (await page.getByRole('button',{name:'Pause QR animation'}).count()) {
       await page.getByRole('button',{name:'Pause QR animation'}).click();
     }
@@ -96,14 +100,18 @@ const { chromium } = require('../.dart_tool/browser-check/node_modules/playwrigh
     await phone.getByRole('button',{name:'Settings',exact:true}).click();
     await phone.getByRole('button',{name:/Explore an example pocket/}).click();
     await phone.getByRole('button',{name:'Back',exact:true}).click();
-    await phone.waitForTimeout(4500);
+    await phone.mouse.move(195, 520);
+    await phone.getByText('Example items are waiting in your pocket.').waitFor({state:'detached', timeout:12000});
+    await phone.waitForTimeout(400);
     await phone.screenshot({path:'artifacts/phone-pocket.png'});
     await page.getByRole('button',{name:'Close',exact:true}).click();
     await page.getByRole('button',{name:'Save and go back'}).click();
     await page.getByRole('button',{name:'Settings',exact:true}).click();
-    await page.getByRole('button',{name:/Appearance/}).click();
     await page.getByRole('button',{name:'Evening ink'}).click();
+    await page.waitForTimeout(400);
     await page.getByRole('button',{name:'Back',exact:true}).click();
+    await page.mouse.move(820, 900);
+    await page.waitForTimeout(400);
     await page.screenshot({path:'artifacts/desktop-dark.png'});
     console.log('PASS: dark theme and phone layout');
     console.log('EXTERNAL REQUESTS', JSON.stringify([...new Set(external)]));

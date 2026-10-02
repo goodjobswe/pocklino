@@ -8,10 +8,11 @@ This repository contains the first working app and its original brand assets. It
 
 ## Inside your pocket
 
-- Notes with personality: emoji, stationery colors, collections, pinning, search and archive.
+- Every kind of page is its own paper: a note slip, a receipt for a list, a cinema ticket, a luggage tag, an envelope. They lie in a stitched ink-blue pocket, by day or in the evening.
+- Notes with personality: emoji, paper colors, collections, pinning, search and archive.
 - Checklists with quick ticking, completed items grouped below, and reset/duplicate controls for reuse.
 - Movie cards with a link and watched status; trip pages with dates, plans and packing lists.
-- Little letters with sender/recipient names and an optional **Open later** date and time.
+- Letters with sender/recipient names and an optional **Open later** date and time.
 - **Pass** a copy using one QR, an animated QR sequence, a copied code or a `.pocklino` file. Preview received content before keeping it.
 - Local autosave, light/dark appearance, optional example pages, and portable JSON backup/restore.
 
@@ -22,7 +23,7 @@ Movie information is entered by the user; IMDb links open externally. Automatic 
 ## Preview builds
 
 - [Android preview APK](artifacts/pocklino-android-preview.apk): optimized build signed with the development key. Its merged manifest excludes `INTERNET` and `ACCESS_NETWORK_STATE`.
-- [Windows preview ZIP](artifacts/Pocklino-Windows.zip): extract the complete archive and run `pocklino.exe`; keep the adjacent DLLs and data directory. The executable passed a brief startup smoke check, without native dialog or rendering verification.
+- [Windows preview ZIP](artifacts/Pocklino-Windows.zip): extract the complete archive and run `pocklino.exe`; keep the adjacent DLLs and data directory. The executable passed a brief startup smoke check and drew its window; native dialogs were not exercised.
 
 These are local preview artifacts, not signed store releases. Physical camera handoff, native share sheets, and iOS builds still need verification.
 
@@ -49,7 +50,7 @@ A new notebook starts empty. Choose **Take a peek at an example pocket** to expl
 
 ## Build and check
 
-Verified on October 1, 2026: `flutter analyze` reports no issues and all **41 automated tests pass**. The release web preview also passed persistence after reload, decoding its actual rendered QR with the bundled decoder, preview/import into a separate browser context, phone layout, and dark-theme checks. The inspected browser run recorded no external requests and no JavaScript errors. See the [verification report](artifacts/browser-verification.json) and [remaining release checks](docs/QA.md). Physical-device camera handoff and iOS testing remain outstanding.
+Verified on October 2, 2026: `flutter analyze` reports no issues and all **49 automated tests pass**. The release web preview also passed persistence after reload, decoding its actual rendered QR with the bundled decoder, preview/import into a separate browser context, phone layout, and dark-theme checks. The inspected browser run recorded no external requests and no JavaScript errors. See the [verification report](artifacts/browser-verification.json) and [remaining release checks](docs/QA.md). Physical-device camera handoff and iOS testing remain outstanding.
 
 ```sh
 flutter analyze
@@ -84,7 +85,7 @@ Pocklino does not upload your notes itself. Choosing an external messaging/cloud
 
 ## Brand and implementation
 
-The identity pairs an ink-blue pocket with a butter-colored note and coral dot. Lora headings, DM Sans text and warm stationery colors make the app feel like a personal notebook.
+The identity pairs an ink-blue pocket with a butter-colored note and coral dot, and the interface is that mark at full size: paper things with ink outlines and hard shadows, tucked into a stitched pocket bar with a coral button. Bricolage Grotesque titles, DM Sans text and DM Mono small print make it read like printed tickets and receipts.
 
 - [Brand guide](docs/BRAND.md), [vector logo](assets/brand/logo.svg), [logo preview](artifacts/logo-preview.png), [mark](assets/brand/mark.svg), [1024 px app icon](assets/brand/app-icon.png)
 - [Architecture and transfer format](docs/ARCHITECTURE.md)

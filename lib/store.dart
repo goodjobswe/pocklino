@@ -343,7 +343,7 @@ class AppStore extends ChangeNotifier {
         color: 3,
         pinned: true,
         body:
-            'Big plans. Tiny reminders. Things that make you smile.\n\nMake yourself at home — this space is yours. Create a page, give it a little personality, and pass it to someone you love.\n\nThese are sample pages. You can edit them or remove all examples in Settings.',
+            'Big plans. Tiny reminders. Things that make you smile.\n\nMake yourself at home. This space is yours. Create a page, give it a little personality, and pass it to someone you love.\n\nThese are sample pages. You can edit them or remove all examples in Settings.',
       ),
       example(
         'Something good for dinner',

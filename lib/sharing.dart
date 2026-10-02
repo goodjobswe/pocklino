@@ -13,15 +13,11 @@ import 'package:share_plus/share_plus.dart';
 
 import 'design.dart';
 import 'models.dart';
+import 'paper.dart';
 import 'store.dart';
 import 'transfer.dart';
+import 'ui_helpers.dart';
 
-const _ink = Color(0xFF243C53);
-const _paper = Color(0xFFF8F6EF);
-const _coral = Color(0xFFDD7C65);
-const _muted = Color(0xFF687581);
-const _mint = Color(0xFFE4EEE4);
-const _line = Color(0xFFE3E1D8);
 const _maximumImportBytes = 256 * 1024;
 
 /// Open the platform share sheet on mobile, or save a portable file elsewhere.
@@ -148,7 +144,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
     try {
       await Clipboard.setData(ClipboardData(text: _token!));
       if (mounted) {
-        _toast(context, 'Pass code copied. Paste it in Pocklino to receive.');
+        toast(context, 'Pass code copied. Paste it in Pocklino to receive.');
       }
     } catch (_) {
       if (mounted) {
@@ -182,24 +178,21 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    final palette = PocketPalette.of(context);
+    final stock = palette.stock(widget.entry.colorIndex);
     final opensLater = widget.entry.unlockAt?.isAfter(DateTime.now()) ?? false;
     return _SheetFrame(
       title: 'Pass a little something',
       subtitle: 'From your pocket to theirs.',
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: _mint,
-            borderRadius: BorderRadius.circular(18),
-          ),
+        Paper(
+          shape: PaperShape.sheet,
+          stock: stock,
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
           child: Row(
             children: [
-              Text(
-                widget.entry.emoji,
-                style: const TextStyle(fontFamily: 'NotoEmoji', fontSize: 27),
-              ),
-              const SizedBox(width: 12),
+              PaperGlyph(widget.entry.kind.shape, size: 22, color: stock.ink),
+              const SizedBox(width: 11),
               Expanded(
                 child: Text(
                   widget.entry.title.isEmpty
@@ -207,32 +200,33 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                       : widget.entry.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: _ink,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: PocketType.display(17, color: stock.ink, height: 1.2),
                 ),
               ),
-              const Icon(Icons.north_east_rounded, size: 20, color: _ink),
+              const SizedBox(width: 8),
+              Icon(Icons.north_east_rounded, size: 19, color: stock.ink),
             ],
           ),
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 24),
         if (_frames.isNotEmpty) ...[
           Center(
             child: Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: _line),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x09243C53),
-                    blurRadius: 18,
-                    offset: Offset(0, 6),
-                  ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: PocklinoColors.deepInk,
+                  width: palette.stroke,
+                ),
+                boxShadow: [
+                  if (!palette.night)
+                    BoxShadow(
+                      color: palette.shade,
+                      offset: const Offset(0, 3),
+                      blurRadius: 0,
+                    ),
                 ],
               ),
               child: LayoutBuilder(
@@ -250,11 +244,11 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                       errorCorrectionLevel: QrErrorCorrectLevel.M,
                       eyeStyle: const QrEyeStyle(
                         eyeShape: QrEyeShape.square,
-                        color: _ink,
+                        color: PocklinoColors.deepInk,
                       ),
                       dataModuleStyle: const QrDataModuleStyle(
                         dataModuleShape: QrDataModuleShape.square,
-                        color: _ink,
+                        color: PocklinoColors.deepInk,
                       ),
                     ),
                   );
@@ -278,11 +272,16 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                     _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                   ),
                 ),
-                Text(
-                  'Frame ${_frame + 1} of ${_frames.length}',
-                  style: const TextStyle(
-                    color: _ink,
-                    fontWeight: FontWeight.w600,
+                Flexible(
+                  child: Text(
+                    'Frame ${_frame + 1} of ${_frames.length}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PocketType.body(
+                      14,
+                      color: palette.ink,
+                      weight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -298,18 +297,18 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                 ),
               ],
             ),
-            const Text(
+            Text(
               'Keep the other camera pointed at the code until all pieces arrive.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: _muted, height: 1.45),
+              style: PocketType.body(14, color: palette.muted),
             ),
           ] else
-            const Text(
+            Text(
               'Open Pocklino on the other device,\ntap Receive, then scan this code.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: _muted, height: 1.5),
+              style: PocketType.body(14, color: palette.muted, height: 1.5),
             ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
           Row(
             children: [
               Expanded(
@@ -533,6 +532,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = PocketPalette.of(context);
     return _SheetFrame(
       title:
           _preview == null
@@ -548,7 +548,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
         else ...[
           if (_scanning) ...[
             ClipRRect(
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(14),
               child: SizedBox(
                 height: 260,
                 child: Stack(
@@ -558,37 +558,40 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
                       onDetect: _onDetect,
                       errorBuilder:
                           (context, error) => Container(
-                            color: _mint,
+                            color: palette.well,
                             padding: const EdgeInsets.all(28),
-                            child: const Column(
+                            child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(
                                   Icons.no_photography_outlined,
-                                  color: _ink,
+                                  color: palette.ink,
                                   size: 32,
                                 ),
-                                SizedBox(height: 12),
+                                const SizedBox(height: 12),
                                 Text(
                                   'Camera unavailable',
-                                  style: TextStyle(
-                                    color: _ink,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.w600,
+                                  style: PocketType.display(
+                                    19,
+                                    color: palette.ink,
                                   ),
                                 ),
-                                SizedBox(height: 8),
+                                const SizedBox(height: 8),
                                 Text(
                                   'Allow camera access in your device or browser settings, then reopen the scanner. You can also choose a file or paste a code.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(color: _muted, height: 1.5),
+                                  style: PocketType.body(
+                                    14,
+                                    color: palette.muted,
+                                    height: 1.5,
+                                  ),
                                 ),
                               ],
                             ),
                           ),
                       placeholderBuilder:
                           (context) => const ColoredBox(
-                            color: _ink,
+                            color: PocklinoColors.deepInk,
                             child: Center(
                               child: CircularProgressIndicator(
                                 color: Colors.white,
@@ -602,8 +605,8 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
                       child: IconButton.filled(
                         tooltip: 'Close camera',
                         style: IconButton.styleFrom(
-                          backgroundColor: _paper,
-                          foregroundColor: _ink,
+                          backgroundColor: PocklinoColors.oat,
+                          foregroundColor: PocklinoColors.deepInk,
                         ),
                         onPressed: () => setState(() => _scanning = false),
                         icon: const Icon(Icons.close_rounded),
@@ -614,60 +617,58 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Hold the code inside the camera view.\nFor moving codes, keep scanning until every piece arrives.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: _muted, height: 1.5),
+              style: PocketType.body(14, color: palette.muted, height: 1.5),
             ),
           ] else
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
-              decoration: BoxDecoration(
-                color: _mint,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.qr_code_scanner_rounded,
-                    size: 54,
-                    color: _ink,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Good things travel light.',
-                    style: TextStyle(
-                      color: _ink,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
+            GhostPaper(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 26),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  children: [
+                    Icon(
+                      Icons.qr_code_scanner_rounded,
+                      size: 48,
+                      color: palette.ink,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _cameraSupported
-                        ? 'Point your camera at a Pocklino code.\nNo internet needed to pass a pocket.'
-                        : 'Choose a Pocklino file or paste a pass code.\nYour pockets stay on this device.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: _muted, height: 1.5),
-                  ),
-                  if (_cameraSupported) ...[
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed:
-                          _busy
-                              ? null
-                              : () => setState(() {
-                                _scanning = true;
-                                _lastScan = null;
-                                _error = null;
-                              }),
-                      icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                      label: const Text('Open camera'),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Good things travel light.',
+                      textAlign: TextAlign.center,
+                      style: PocketType.display(20, color: palette.ink),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _cameraSupported
+                          ? 'Point your camera at a Pocklino code.\nNo internet needed to pass a pocket.'
+                          : 'Choose a Pocklino file or paste a pass code.\nYour pockets stay on this device.',
+                      textAlign: TextAlign.center,
+                      style: PocketType.body(
+                        14,
+                        color: palette.muted,
+                        height: 1.5,
+                      ),
+                    ),
+                    if (_cameraSupported) ...[
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed:
+                            _busy
+                                ? null
+                                : () => setState(() {
+                                  _scanning = true;
+                                  _lastScan = null;
+                                  _error = null;
+                                }),
+                        icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                        label: const Text('Open camera'),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           if (_assembler.progress > 0 && _assembler.progress < 1) ...[
@@ -677,43 +678,39 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
               child: LinearProgressIndicator(
                 value: _assembler.progress,
                 minHeight: 7,
-                backgroundColor: _line,
-                color: _coral,
+                backgroundColor: palette.hairline,
+                color: palette.coral,
               ),
             ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  '${(_assembler.progress * 100).round()}% of your pocket received',
-                  style: const TextStyle(color: _muted, fontSize: 12),
+                Flexible(
+                  child: Text(
+                    '${(_assembler.progress * 100).round()}% of your pocket received',
+                    style: PocketType.body(12, color: palette.muted),
+                  ),
                 ),
                 TextButton(onPressed: _reset, child: const Text('Start over')),
               ],
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: 18),
           OutlinedButton.icon(
             onPressed: _busy ? null : _pickFile,
             icon: const Icon(Icons.file_open_outlined, size: 18),
             label: Text(_busy ? 'Reading file…' : 'Choose a Pocklino file'),
           ),
           const SizedBox(height: 22),
-          Row(
+          const Row(
             children: [
-              const Expanded(child: Divider(color: _line)),
+              Expanded(child: Divider()),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'OR PASTE A CODE',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: _muted,
-                    letterSpacing: 1.2,
-                  ),
-                ),
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: MonoLabel('Or paste a code'),
               ),
-              const Expanded(child: Divider(color: _line)),
+              Expanded(child: Divider()),
             ],
           ),
           const SizedBox(height: 14),
@@ -724,21 +721,15 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
             maxLength: _maximumImportBytes,
             autocorrect: false,
             enableSuggestions: false,
-            style: const TextStyle(fontSize: 13, color: _ink),
+            style: PocketType.mono(
+              12.5,
+              color: palette.ink,
+              weight: FontWeight.w400,
+            ).copyWith(letterSpacing: 0, height: 1.45),
             decoration: InputDecoration(
               hintText: 'Paste your Pocklino pass code here…',
-              hintStyle: const TextStyle(color: _muted),
-              filled: true,
-              fillColor: Colors.white,
+              hintStyle: PocketType.body(14, color: palette.muted),
               counterText: '',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: _line),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: const BorderSide(color: _line),
-              ),
             ),
           ),
           const SizedBox(height: 10),
@@ -768,135 +759,152 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
     );
   }
 
+  /// The page as it will lie in the pocket. A page that opens later shows
+  /// only its sealed envelope.
   Widget _buildPreview(BuildContext context, PocketEntry entry) {
+    final palette = PocketPalette.of(context);
+    final stock = palette.stock(entry.colorIndex);
     final locked = entry.unlockAt?.isAfter(DateTime.now()) ?? false;
+    final shape = locked ? PaperShape.envelope : entry.kind.shape;
+    final envelope = shape == PaperShape.envelope;
+    final quiet = PocketType.body(12.5, color: stock.inkMuted);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(26),
-          decoration: BoxDecoration(
-            color: locked ? const Color(0xFFF4E2D8) : _mint,
-            borderRadius: BorderRadius.circular(24),
-          ),
+        Paper(
+          shape: shape,
+          stock: stock,
+          padding: EdgeInsets.fromLTRB(20, envelope ? 0 : 20, 20, 20),
+          stubHeight: 40,
+          stub:
+              shape == PaperShape.ticket
+                  ? Align(
+                    alignment: Alignment.centerLeft,
+                    child: MonoLabel(
+                      entry.watched ? 'Watched' : 'To watch',
+                      color: stock.ink,
+                    ),
+                  )
+                  : null,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                locked ? '💌' : entry.emoji,
-                style: const TextStyle(fontFamily: 'NotoEmoji', fontSize: 38),
-              ),
-              const SizedBox(height: 16),
+              if (envelope) ...[
+                SealOnFlap(
+                  inset: 20,
+                  sealSize: 46,
+                  seal:
+                      locked
+                          ? const WaxSeal(icon: Icons.lock_rounded, size: 46)
+                          : WaxSeal(emoji: entry.emoji, size: 46),
+                ),
+                const SizedBox(height: 16),
+              ],
               Text(
                 entry.title.isEmpty ? 'A little something' : entry.title,
-                style: const TextStyle(
-                  fontSize: 25,
-                  color: _ink,
-                  fontWeight: FontWeight.w600,
-                  height: 1.2,
-                ),
+                style: PocketType.display(24, color: stock.ink),
               ),
               const SizedBox(height: 10),
               if (locked) ...[
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
-                      Icons.lock_clock_outlined,
-                      size: 19,
-                      color: _ink,
-                    ),
+                    Icon(Icons.lock_clock_outlined, size: 19, color: stock.ink),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Ready to open ${_dateTime(entry.unlockAt!)}',
-                        style: const TextStyle(color: _ink, height: 1.5),
+                        style: PocketType.body(
+                          15,
+                          color: stock.ink,
+                          weight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
-                const Text(
+                const SizedBox(height: 12),
+                Text(
                   'A little anticipation is part of the gift. Keep this envelope safe until its moment arrives.',
-                  style: TextStyle(color: _muted, height: 1.55),
+                  style: PocketType.body(
+                    14,
+                    color: stock.inkMuted,
+                    height: 1.55,
+                  ),
                 ),
               ] else ...[
-                Text(
-                  '${_kindLabel(entry.kind.name)}${entry.items.isNotEmpty ? ' · ${entry.items.length} items' : ''}',
-                  style: const TextStyle(color: _muted, fontSize: 12),
+                MonoLabel(
+                  '${entry.kind.label}${entry.items.isNotEmpty ? ' · ${entry.items.length} items' : ''}',
+                  color: stock.inkMuted,
                 ),
                 if (entry.body.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   Text(
                     entry.body,
                     maxLines: 7,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _ink, height: 1.6),
+                    style: PocketType.body(15, color: stock.ink, height: 1.55),
                   ),
                 ],
                 if (entry.items.isNotEmpty) ...[
                   const SizedBox(height: 14),
-                  ...entry.items
-                      .take(5)
-                      .map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 9),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                item.done
-                                    ? Icons.check_circle_outline_rounded
-                                    : Icons.radio_button_unchecked_rounded,
-                                size: 18,
-                                color: _muted,
-                              ),
-                              const SizedBox(width: 9),
-                              Expanded(
-                                child: Text(
-                                  item.text,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: _ink,
-                                    height: 1.4,
-                                    decoration:
-                                        item.done
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                  ),
-                                ),
-                              ),
-                            ],
+                  for (final item in entry.items.take(5))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 9),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: InkCheck(
+                              done: item.done,
+                              stock: stock,
+                              size: 16,
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              item.text,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: PocketType.body(
+                                15,
+                                color: stock.ink,
+                                height: 1.35,
+                              ).copyWith(
+                                decoration:
+                                    item.done
+                                        ? TextDecoration.lineThrough
+                                        : null,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
                   if (entry.items.length > 5)
                     Text(
                       '+ ${entry.items.length - 5} more items',
-                      style: const TextStyle(color: _muted, fontSize: 12),
+                      style: quiet,
                     ),
                 ],
                 if (entry.date != null) ...[
                   const SizedBox(height: 10),
-                  Text(
-                    DateFormat('MMM d, yyyy').format(entry.date!.toLocal()),
-                    style: const TextStyle(color: _muted, fontSize: 12),
-                  ),
+                  Text(niceDate(entry.date!), style: quiet),
                 ],
                 if (entry.url.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Row(
                     children: [
-                      const Icon(Icons.link_rounded, size: 17, color: _muted),
+                      Icon(Icons.link_rounded, size: 17, color: stock.inkMuted),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           entry.url,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: _muted, fontSize: 12),
+                          style: quiet,
                         ),
                       ),
                     ],
@@ -906,7 +914,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
             ],
           ),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         _Hint(
           icon: locked ? Icons.schedule_rounded : Icons.content_copy_rounded,
           text:
@@ -914,7 +922,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
                   ? 'Open later uses this device’s clock. It is a thoughtful surprise, not secure encryption.'
                   : 'Keeping this creates a new copy. You can edit it freely; changes will not sync back to the sender.',
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 20),
         FilledButton.icon(
           onPressed: _busy ? null : _keep,
           icon:
@@ -942,6 +950,7 @@ class _ReceiveSheetState extends State<_ReceiveSheet> {
   }
 }
 
+/// A sheet of paper drawn up from the pocket.
 class _SheetFrame extends StatelessWidget {
   const _SheetFrame({
     required this.title,
@@ -954,83 +963,60 @@ class _SheetFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: PocklinoTheme.light,
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
+    final palette = PocketPalette.of(context);
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height * 0.92,
         ),
-        child: Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.92,
-          ),
-          decoration: const BoxDecoration(
-            color: _paper,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              key: ValueKey(title),
-              padding: const EdgeInsets.fromLTRB(24, 10, 24, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: _line,
-                        borderRadius: BorderRadius.circular(6),
+        decoration: BoxDecoration(
+          color: palette.sheet,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            key: ValueKey(title),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 26),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SheetHandle(),
+                const SizedBox(height: 14),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            subtitle,
+                            style: PocketType.body(14, color: palette.muted),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              title,
-                              style: const TextStyle(
-                                color: _ink,
-                                fontSize: 25,
-                                fontFamily: 'Lora',
-                                fontWeight: FontWeight.w500,
-                                height: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 7),
-                            Text(
-                              subtitle,
-                              style: const TextStyle(
-                                color: _muted,
-                                fontSize: 14,
-                                height: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      IconButton(
-                        tooltip: 'Close',
-                        visualDensity: VisualDensity.compact,
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: const Icon(Icons.close_rounded, color: _ink),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  ...children,
-                ],
-              ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      tooltip: 'Close',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ...children,
+              ],
             ),
           ),
         ),
@@ -1045,19 +1031,19 @@ class _Hint extends StatelessWidget {
   final String text;
 
   @override
-  Widget build(BuildContext context) => Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(icon, size: 17, color: _muted),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Text(
-          text,
-          style: const TextStyle(color: _muted, fontSize: 12, height: 1.5),
+  Widget build(BuildContext context) {
+    final palette = PocketPalette.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 17, color: palette.muted),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(text, style: PocketType.body(12.5, color: palette.muted)),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
 
 class _ErrorNotice extends StatelessWidget {
@@ -1066,56 +1052,46 @@ class _ErrorNotice extends StatelessWidget {
   final VoidCallback? onReset;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    liveRegion: true,
-    child: Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8E3DB),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.info_outline_rounded, size: 18, color: _ink),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: _ink,
-                    fontSize: 13,
-                    height: 1.5,
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: scheme.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline_rounded, size: 18, color: scheme.error),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: PocketType.body(
+                      13.5,
+                      color: scheme.onErrorContainer,
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-          if (onReset != null)
-            TextButton(
-              onPressed: onReset,
-              child: const Text('Reset this transfer'),
+              ],
             ),
-        ],
+            if (onReset != null)
+              TextButton(
+                onPressed: onReset,
+                child: const Text('Reset this transfer'),
+              ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 String _dateTime(DateTime date) =>
     DateFormat('MMM d, yyyy · HH:mm').format(date.toLocal());
-
-String _kindLabel(String kind) => switch (kind) {
-  'checklist' => 'Checklist',
-  'movie' => 'Movie',
-  'trip' => 'Travel plan',
-  'letter' => 'Little letter',
-  _ => 'Note',
-};
-
-void _toast(BuildContext context, String message) {
-  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-}

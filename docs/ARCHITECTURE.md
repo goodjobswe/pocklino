@@ -7,16 +7,18 @@ Pocklino is a local Flutter application. Its features do not require a Pocklino 
 | Module | Responsibility |
 | --- | --- |
 | `lib/main.dart` | Opens the notebook, offers retry without resetting data, applies appearance settings. |
-| `lib/design.dart` | Brand palette, light/dark themes, bundled typography and vector pocket mark. |
+| `lib/design.dart` | Day and evening palettes, themes, the three type voices, the vector pocket mark and the wordmark. |
+| `lib/paper.dart` | The paper silhouettes (slip, receipt, ticket, tag, envelope, folder), the `Paper` widget that draws them, and small paper parts such as the pin, the seal and the tick box. |
+| `lib/pocket.dart` | The pocket itself: the stitched bottom bar for phones, the side panel for wide windows and the coral create button. |
 | `lib/models.dart` | `PocketEntry`, immutable checklist items, JSON validation and the reveal-date predicate. |
 | `lib/store.dart` | Local transactions, serialized mutations, collections, settings, duplication, import and backup merge. |
 | `lib/storage/` | Conditional native Sembast file / web Sembast IndexedDB adapters. |
-| `lib/home.dart` | Responsive board, collections, search/filtering, Later view and card actions. |
-| `lib/editor.dart` | Type-specific editing, autosave, checklist operations, reveal-time UI. |
+| `lib/home.dart` | Responsive board of papers, the four places (Pocket, Collections, Open later, Archive), search/filtering, card actions and the create sheet. |
+| `lib/editor.dart` | Type-specific editing on a full-size paper, autosave, checklist operations, reveal-time UI. |
 | `lib/sharing.dart` | Pass/receive sheets, QR playback/scanning, bounded file reads and portable file export. |
 | `lib/transfer.dart` | Versioned single-page envelopes, integrity checks, QR fragmentation and reassembly. |
 | `lib/settings.dart` | Local preferences, backup/restore, examples and privacy explanations. |
-| `lib/ui_helpers.dart` | Type labels/stickers, date display and validated HTTP(S) link opening. |
+| `lib/ui_helpers.dart` | Type labels, stickers and paper shapes, date display, the one-line text prompt and validated HTTP(S) link opening. |
 
 ## Data and commits
 

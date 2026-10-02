@@ -29,8 +29,16 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>Pocklino — A little space for your life</title>
+  <title>Pocklino - A little space for your life</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- The desk colours of the app, so loading does not flash white. -->
+  <meta name="theme-color" content="#F4F0E6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0E1822" media="(prefers-color-scheme: dark)">
+  <style>
+    body { background: #F4F0E6; }
+    @media (prefers-color-scheme: dark) { body { background: #0E1822; } }
+  </style>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

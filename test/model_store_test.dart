@@ -304,7 +304,7 @@ void main() {
           0,
           5,
         ]);
-        expect(store.entries[0].body, contains('home \u2014 this space'));
+        expect(store.entries[0].body, contains('home. This space'));
         expect(store.entries[3].body, contains('tiny caf\u00e9,'));
         expect(store.entries[4].body, endsWith('\u{1F49B}'));
         final reopened = AppStore(database: database);

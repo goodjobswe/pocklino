@@ -8,7 +8,14 @@ import 'store.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   LicenseRegistry.addLicense(() async* {
-    for (final font in ['Lora', 'DMSans', 'Roboto', 'NotoEmoji']) {
+    for (final font in [
+      'Bricolage',
+      'DMSans',
+      'DMMono',
+      'Lora',
+      'Roboto',
+      'NotoEmoji',
+    ]) {
       final license = await rootBundle.loadString('assets/fonts/$font-OFL.txt');
       yield LicenseEntryWithLineBreaks(['$font font'], license);
     }
@@ -49,33 +56,44 @@ class _BootstrapState extends State<_Bootstrap> {
       title: 'Pocklino',
       debugShowCheckedModeBanner: false,
       theme: PocklinoTheme.light,
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const PocketMark(size: 88),
-                const SizedBox(height: 24),
-                if (error == null) const CircularProgressIndicator(),
-                if (error != null) ...[
-                  const Text(
-                    'Your pocket could not be opened.',
-                    style: TextStyle(fontSize: 22),
+      darkTheme: PocklinoTheme.dark,
+      home: Builder(
+        builder:
+            (context) => Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PocketMark(
+                        size: 88,
+                        background: PocketPalette.of(context).night,
+                      ),
+                      const SizedBox(height: 24),
+                      if (error == null) const CircularProgressIndicator(),
+                      if (error != null) ...[
+                        Text(
+                          'Your pocket could not be opened.',
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Your saved data has not been reset. Try opening it again.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        FilledButton(
+                          onPressed: load,
+                          child: const Text('Try again'),
+                        ),
+                      ],
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Your saved data has not been reset. Try opening it again.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(onPressed: load, child: const Text('Try again')),
-                ],
-              ],
+                ),
+              ),
             ),
-          ),
-        ),
       ),
     );
   }

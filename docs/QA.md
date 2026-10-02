@@ -4,7 +4,7 @@ This is a first working build, not a store-ready release. Automated tests and lo
 
 ## Automated checks
 
-Latest completed run, October 1, 2026: **`flutter analyze` has no issues; all 41 Flutter tests pass.** This includes nine home/editor interaction tests and the compact single/multipart QR transfer tests.
+Latest completed run, October 2, 2026: **`flutter analyze` has no issues; all 49 Flutter tests pass.** This includes seventeen home/editor interaction tests and the compact single/multipart QR transfer tests.
 
 Run from the repository root:
 
@@ -22,14 +22,27 @@ The suite covers:
 - Backup roundtrip, preferences, duplicate/conflict handling and atomic rejection of invalid input.
 - Single and multipart transfer roundtrips, reordered/repeated frames, malformed input, integrity failure and size limits.
 - UI creation/autosave, saving on departure, clearing an already-autosaved new note, edited-example preservation, checklist actions and narrow-screen layout.
-- Concealment of future letters in cards/search/editor and receive previews.
+- Card menus: deleting with undo while the menu is still closing, archiving to the Archive place and bringing back, and adding a collection after cancelling its dialog.
+- The empty pocket's own button for a first page, the side panel on a wide window, and a failed save that leaves the cursor in its field.
+- Button roles for the papers on the create sheet, as a screen reader hears them.
+- Concealment of future letters in cards/search/editor and receive previews, and of a sealed page of any other kind on its card and in the editor.
 - Receive validation/import and animated QR pause, manual advance and dismissal.
 
 Tests use local/in-memory databases and do not establish real camera or native share-sheet compatibility. Run the complete suite again after changes to editor saving, data schemas or transfer rules.
 
+## Visual review
+
+The suite lays text out in a placeholder font, so it cannot show how a screen looks. A separate harness draws the real screens with the bundled fonts and saves them as pictures:
+
+```sh
+flutter test tool/screens_test.dart
+```
+
+It writes about 80 PNG files to `build/screens` (or the folder named in `SCREENS_DIR`): every place, the create sheet, each editor, the pass and receive sheets, dialogs, pickers and settings, by day and in the evening, on a phone and a wide window, plus a short medium window, a 320 px phone and a small phone with large text. A layout overflow fails the run. Look through the pictures after any change to `lib/design.dart`, `lib/paper.dart` or `lib/pocket.dart`.
+
 ## Browser review
 
-The release web preview completed these checks on October 1, 2026. Evidence: [browser-verification.json](../artifacts/browser-verification.json), [desktop pocket](../artifacts/desktop-pocket.png), [phone pocket](../artifacts/phone-pocket.png), [dark appearance](../artifacts/desktop-dark.png), and [rendered QR](../artifacts/pass-qr.png).
+The release web preview completed these checks on October 2, 2026. Evidence: [browser-verification.json](../artifacts/browser-verification.json), [desktop pocket](../artifacts/desktop-pocket.png), [phone pocket](../artifacts/phone-pocket.png), [dark appearance](../artifacts/desktop-dark.png), and [rendered QR](../artifacts/pass-qr.png).
 
 - [x] A saved note survives a browser reload.
 - [x] The bundled ZXing decoder reconstructs the code from an actual rendered QR screenshot.
@@ -69,12 +82,12 @@ Browser camera access requires HTTPS or localhost and permission. A desktop brow
 
 ## Native build verification
 
-Completed on October 1, 2026:
+Completed on October 2, 2026, with the paper pocket interface:
 
 - [x] Built [the optimized Android preview APK](../artifacts/pocklino-android-preview.apk); verified its development signature and absence of `INTERNET` / `ACCESS_NETWORK_STATE` in the final manifest. Production signing remains unconfigured.
-- [x] Launched an Android debug build in an emulator without runtime errors and inspected its empty/populated screens. [Empty screen](../artifacts/android-empty.png), [populated pocket](../artifacts/android-pocket.png). This does not verify camera capture.
-- [x] Built [the complete Windows release archive](../artifacts/Pocklino-Windows.zip) using [windows/build_release.ps1](../windows/build_release.ps1). The 26-entry bundle includes the executable, DLLs, and data.
-- [x] Started the Windows executable in a brief process smoke check: it stayed running for three seconds and produced no stdout/stderr errors. Native rendering and file/share dialogs were not exercised.
+- [x] Installed that release build on an Android 15 emulator and walked through the empty pocket, the examples, the create sheet, a note, a letter, collections and the evening appearance by their accessibility labels. The device log showed no Flutter errors. [Empty screen](../artifacts/android-empty.png), [populated pocket](../artifacts/android-pocket.png). This does not verify camera capture.
+- [x] Built [the complete Windows release archive](../artifacts/Pocklino-Windows.zip) using [windows/build_release.ps1](../windows/build_release.ps1). The 37-entry bundle includes the executable, DLLs, and data.
+- [x] Started the Windows executable in a brief process smoke check: it stayed running for six seconds, drew its window and produced no stdout/stderr output. File/share dialogs were not exercised.
 
 ## Physical Android and iOS checks still required
 
