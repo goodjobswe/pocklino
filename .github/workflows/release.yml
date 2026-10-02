@@ -76,7 +76,9 @@ jobs:
 
   windows:
     name: Build the Windows ZIP
-    runs-on: windows-latest
+    # Flutter 3.29.3 cannot find Visual Studio 2026, which windows-latest now
+    # has. Go back to windows-latest together with a newer Flutter.
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v4
 
