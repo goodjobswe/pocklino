@@ -79,7 +79,8 @@ const { chromium } = require('../.dart_tool/browser-check/node_modules/playwrigh
       const hints = new Map([[ZXing.DecodeHintType.TRY_HARDER,true]]);
       return new ZXing.QRCodeReader().decode(bitmap,hints).getText();
     }, 'data:image/png;base64,'+screenshot.toString('base64'));
-    assert.match(scanned,/^pocklino(?:-part)?:1:/);
+    // The QR carries the compact version 2 code; a short note is one code.
+    assert.match(scanned,/^POCKLINO:2:[0-9A-Z $%*+.\/:-]+$/);
     console.log('PASS: locally bundled ZXing decodes actual rendered QR pixels');
     await page.getByRole('button',{name:'Copy code',exact:true}).click();
     const token = await page.evaluate(()=>navigator.clipboard.readText());
@@ -88,6 +89,15 @@ const { chromium } = require('../.dart_tool/browser-check/node_modules/playwrigh
     const phone = await receiver.newPage();
     await boot(phone);
     await phone.getByRole('button',{name:'Receive a note',exact:true}).click();
+    // First what the camera would read from the QR, then the copied code.
+    await phone.getByRole('textbox',{name:'Paste your Pocklino pass code here…'}).click();
+    await phone.keyboard.insertText(scanned);
+    await phone.waitForTimeout(200);
+    await phone.getByRole('button',{name:'Preview pocket',exact:true}).click();
+    assert.match(await phone.locator('body').ariaSnapshot(), /A little browser check/);
+    assert.match(await phone.locator('body').ariaSnapshot(), /Café, tomorrow at 10/);
+    console.log('PASS: the receiver inflates and previews the scanned version 2 code');
+    await phone.getByRole('button',{name:'Try another code',exact:true}).click();
     await phone.getByRole('textbox',{name:'Paste your Pocklino pass code here…'}).click();
     await phone.keyboard.insertText(token);
     await phone.waitForTimeout(200);

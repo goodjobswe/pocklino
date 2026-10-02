@@ -1,7 +1,7 @@
 name: pocklino
 description: "A little space for your life. Private notes, lists, plans and little surprises."
 publish_to: none
-version: 1.0.1+2
+version: 1.0.2+3
 environment:
   sdk: ^3.7.2
 dependencies:
@@ -21,6 +21,7 @@ dependencies:
   url_launcher: ^6.3.2
   intl: ^0.20.2
   cupertino_icons: ^1.0.8
+  archive: ^4.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

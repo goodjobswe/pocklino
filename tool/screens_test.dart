@@ -224,7 +224,20 @@ void main() {
         final entry = PocketEntry(
           id: 'scan-check',
           title: 'A little memory',
-          body: 'Keep this memory for another day. ' * 40,
+          // Ordinary writing. A repeated phrase would compress into one code.
+          body:
+              'We took the early ferry out to the island and walked the long '
+              'way round, past the lighthouse and the old boat sheds. Lunch '
+              'was smoked fish on the rocks, then a swim that nobody had '
+              'planned for. Remember to bring the blue thermos next time, '
+              'and a second towel.\n\nThe last ferry back leaves at half past '
+              'six, so we should be at the pier by six at the latest. Ask '
+              'Maria about the cabin for the first week of July, and whether '
+              'the bikes can stay in the shed over the winter. The key hangs '
+              'behind the green door, third hook from the left.\n\nThings we '
+              'said we would do before then: mend the tent zip, find the '
+              'second paddle, print the tide table, and write down the name '
+              'of the bakery by the harbour before we forget it again.',
           kind: EntryKind.note,
           createdAt: now,
           updatedAt: now,
@@ -236,6 +249,8 @@ void main() {
         await tapTip(tester, 'Pause QR animation');
         await tapTip(tester, 'Next QR frame');
         await qrShot(tester, 'qr-${size.width.toInt()}-$look-next', entry);
+        await tapTip(tester, 'Enlarge code');
+        await qrShot(tester, 'qr-${size.width.toInt()}-$look-enlarged', entry);
         expect(tester.takeException(), isNull);
       });
     }

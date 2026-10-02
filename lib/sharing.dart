@@ -96,7 +96,10 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   String? _token;
   String? _error;
   Timer? _timer;
-  int _frame = 0;
+  // A notifier, so the enlarged code keeps playing above this sheet.
+  final _shown = ValueNotifier<int>(0);
+  int get _frame => _shown.value;
+  set _frame(int value) => _shown.value = value;
   int _frameDurationMs = 1000;
   bool _playing = true;
   bool _saving = false;
@@ -151,14 +154,37 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                   child: LayoutBuilder(
                     builder:
                         (context, constraints) => Center(
-                          child: _PassQr(
-                            data: _frames.single,
-                            size: constraints.biggest.shortestSide,
-                            label: 'Enlarged Pocklino pass code.',
+                          child: ValueListenableBuilder<int>(
+                            valueListenable: _shown,
+                            builder:
+                                (context, frame, _) => _PassQr(
+                                  data: _frames[frame],
+                                  size: constraints.biggest.shortestSide,
+                                  label:
+                                      _frames.length == 1
+                                          ? 'Enlarged Pocklino pass code.'
+                                          : 'Enlarged Pocklino pass code. Frame ${frame + 1} of ${_frames.length}.',
+                                ),
                           ),
                         ),
                   ),
                 ),
+                if (_frames.length > 1)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _shown,
+                      builder:
+                          (context, frame, _) => Text(
+                            'Frame ${frame + 1} of ${_frames.length}',
+                            style: PocketType.body(
+                              14,
+                              color: Colors.black,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -178,6 +204,7 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _shown.dispose();
     super.dispose();
   }
 
@@ -225,10 +252,12 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
     final screenHeight = MediaQuery.sizeOf(context).height;
     final compact = screenHeight < 720;
     // Tighten the surrounding paper on short phones so the code stays large
-    // while its speed control remains within reach without scrolling.
+    // while its speed control remains within reach without scrolling. A tall
+    // window gets a larger code: a monitor has far fewer pixels to the
+    // module than a phone.
     final qrSize = (screenHeight * 0.92 - (compact ? 280 : 380)).clamp(
       220.0,
-      300.0,
+      440.0,
     );
     return _SheetFrame(
       title: 'Pass a little something',
@@ -389,6 +418,11 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
                   },
                   icon: const Icon(Icons.skip_next_rounded),
                 ),
+                IconButton(
+                  tooltip: 'Enlarge code',
+                  onPressed: _enlargeCode,
+                  icon: const Icon(Icons.fullscreen_rounded),
+                ),
               ],
             ),
             Text(
@@ -471,6 +505,29 @@ class _PassSheetState extends State<_PassSheet> with WidgetsBindingObserver {
   }
 }
 
+final _qrAlphanumeric = RegExp(r'^[0-9A-Z $%*+./:-]+$');
+
+/// The smallest code that holds [data]. Sharing codes use only the QR
+/// alphanumeric set, which takes 5.5 bits a character instead of 8. On a
+/// screen the loss is blur, not damage, so level M and larger modules read
+/// better than a higher level.
+QrImage _passImage(String data) {
+  final alphanumeric = _qrAlphanumeric.hasMatch(data);
+  for (var version = 1; ; version++) {
+    final code = QrCode(version, QrErrorCorrectLevel.M);
+    if (alphanumeric) {
+      code.addAlphaNumeric(data);
+    } else {
+      code.addData(data);
+    }
+    try {
+      return QrImage(code);
+    } on InputTooLongException {
+      if (version == 40) rethrow;
+    }
+  }
+}
+
 /// Keep a four-module white quiet zone, independent of QR version or size.
 class _PassQr extends StatelessWidget {
   const _PassQr({required this.data, required this.size, required this.label});
@@ -481,10 +538,6 @@ class _PassQr extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qr = QrCode.fromData(
-      data: data,
-      errorCorrectLevel: QrErrorCorrectLevel.Q,
-    );
     return Semantics(
       key: const ValueKey('pass-qr'),
       label: label,
@@ -492,7 +545,7 @@ class _PassQr extends StatelessWidget {
       child: CustomPaint(
         size: Size.square(size),
         painter: _QrMatrixPainter(
-          qr: QrImage(qr),
+          qr: _passImage(data),
           pixelRatio: MediaQuery.devicePixelRatioOf(context),
         ),
       ),
@@ -572,9 +625,12 @@ class _QrCameraState extends State<_QrCamera> with WidgetsBindingObserver {
     );
   }
 
+  // The default looks at one camera picture every 250 ms, which gives a
+  // moving code one or two attempts per frame at the faster speeds.
   final _controller = MobileScannerController(
     autoStart: false,
     formats: const [BarcodeFormat.qrCode],
+    detectionTimeoutMs: 50,
   );
   bool _active = true;
   bool _disposed = false;

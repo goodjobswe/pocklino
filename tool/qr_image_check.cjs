@@ -10,7 +10,7 @@ const { chromium } = require('../.dart_tool/browser-check/node_modules/playwrigh
   const names = ['qr-static', 'qr-enlarged'];
   for (const width of [390, 320, 1440]) {
     for (const look of ['day', 'night']) {
-      names.push(`qr-${width}-${look}`, `qr-${width}-${look}-next`);
+      names.push(`qr-${width}-${look}`, `qr-${width}-${look}-next`, `qr-${width}-${look}-enlarged`);
     }
   }
   const browser = await chromium.launch({ channel: 'chrome', headless: true });

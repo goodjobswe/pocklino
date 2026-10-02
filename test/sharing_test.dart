@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,6 +25,38 @@ PocketEntry entry({String body = 'Remember the popcorn', DateTime? unlockAt}) {
     items: const [CheckItem(id: 'hidden-item', text: 'A hidden gift idea')],
   );
 }
+
+/// Made-up words: long enough for an animated code, and with nothing for
+/// the compression to fold away as it would a repeated phrase.
+String longBody() {
+  final random = math.Random(3);
+  const letters = 'abcdefghijklmnopqrstuvwxyz';
+  return List.generate(
+    500,
+    (_) =>
+        List.generate(
+          2 + random.nextInt(7),
+          (_) => letters[random.nextInt(letters.length)],
+        ).join(),
+  ).join(' ');
+}
+
+/// Modules along one side of the code that is on screen.
+int shownModules(WidgetTester tester) =>
+    ((tester
+                    .widget<CustomPaint>(
+                      find
+                          .descendant(
+                            of: find.byKey(const ValueKey('pass-qr')).last,
+                            matching: find.byType(CustomPaint),
+                          )
+                          .first,
+                    )
+                    .painter
+                as dynamic)
+            .qr
+            .moduleCount
+        as int);
 
 Widget host(VoidCallback Function(BuildContext) action) => MaterialApp(
   theme: PocklinoTheme.light,
@@ -192,9 +225,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final longEntry = entry(
-        body: List.filled(50, 'A little memory. ').join(),
-      );
+      final longEntry = entry(body: longBody());
       await tester.pumpWidget(
         host((context) => () => showPassSheet(context, longEntry)),
       );
@@ -203,6 +234,8 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
       expect(tester.takeException(), isNull);
       final frameCount = TransferCodec.frames(longEntry).length;
+      expect(frameCount, greaterThan(5));
+      expect(shownModules(tester), lessThanOrEqualTo(57));
       expect(find.text('Frame 1 of $frameCount'), findsOneWidget);
       expect(find.text('1.0 s / frame'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 649));
@@ -258,7 +291,7 @@ void main() {
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
-      final original = entry(body: List.filled(50, 'A little memory. ').join());
+      final original = entry(body: longBody());
       await tester.pumpWidget(
         host((context) => () => showPassSheet(context, original)),
       );
@@ -308,6 +341,8 @@ void main() {
       await tester.tap(find.text('Start'));
       await tester.pumpAndSettle();
       expect(find.byType(Slider), findsNothing);
+      // Byte mode would need 53 modules a side for the same characters.
+      expect(shownModules(tester), lessThanOrEqualTo(41));
       final originalSize = tester.getSize(
         find.byKey(const ValueKey('pass-qr')),
       );
@@ -326,6 +361,45 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('an animated code keeps playing while enlarged', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final longEntry = entry(body: longBody());
+    final frameCount = TransferCodec.frames(longEntry).length;
+    await tester.pumpWidget(
+      host((context) => () => showPassSheet(context, longEntry)),
+    );
+    await tester.tap(find.text('Start'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    final originalSize = tester.getSize(find.byKey(const ValueKey('pass-qr')));
+    await tester.tap(find.byTooltip('Enlarge code'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    enlarged(int frame) => find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics &&
+          widget.properties.label ==
+              'Enlarged Pocklino pass code. Frame $frame of $frameCount.',
+    );
+    expect(enlarged(1), findsOneWidget);
+    expect(tester.getSize(enlarged(1)).width, greaterThan(originalSize.width));
+    final first = shownModules(tester);
+    await tester.pump(const Duration(seconds: 1));
+    expect(enlarged(2), findsOneWidget);
+    expect(find.text('Frame 2 of $frameCount'), findsWidgets);
+    expect(shownModules(tester), first);
+    await tester.tap(find.byTooltip('Close enlarged code'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(enlarged(2), findsNothing);
+    expect(find.text('Pass a little something'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   testWidgets(
     'camera scans only QR, retains pieces across lifecycle and reopening, and disposes',
@@ -359,9 +433,9 @@ void main() {
       await tester.tap(find.text('Open camera'));
       await tester.pumpAndSettle();
       expect(scanner.starts.single.formats, [BarcodeFormat.qrCode]);
-      final frames = TransferCodec.frames(
-        entry(body: List.filled(50, 'A little memory. ').join()),
-      );
+      // Often enough to read each frame of a moving code several times.
+      expect(scanner.starts.single.detectionTimeoutMs, lessThanOrEqualTo(100));
+      final frames = TransferCodec.frames(entry(body: longBody()));
       void detect(String value) => scanner.captures.add(
         BarcodeCapture(
           barcodes: [Barcode(rawValue: value, format: BarcodeFormat.qrCode)],
